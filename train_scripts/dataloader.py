@@ -3,7 +3,13 @@ import os
 import cv2
 import pandas as pd
 import numpy as np
+
 from torch.utils.data import Dataset, DataLoader
+import torch
+
+from torchvision import transforms
+
+torch.manual_seed(25)
 
 
 class ImageDataset(Dataset):
@@ -42,19 +48,26 @@ class ImageDataset(Dataset):
         result_image = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
         result_image[t_padding:b_padding, l_padding:r_padding, :] = image
 
-        labels = self.df.loc[idx]
+        if self.transform:
+            result_image = self.transform(result_image)
 
-        print(image_h / image_w)
+        labels = self.df.iloc[:, 1:12].loc[idx].values.astype('float').reshape(-1, 11)
 
-        return {'image': result_image, 'classes': [1, 0]}
+        return result_image, labels
 
 
 if __name__ == '__main__':
     train_df = pd.read_csv('../dataset/train.csv')
-    dataset = ImageDataset(train_df, None, '../dataset/train')
+
+    image_transforms = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.RandomHorizontalFlip(),
+    ])
+
+    dataset = ImageDataset(train_df, image_transforms, '../dataset/train')
 
     for i in range(50, 60):
-        sample = dataset[i]
-        cv2.imshow('1', sample['image'])
-        cv2.waitKey(0)
+        image, labels = dataset[i]
+        # cv2.imshow('1', sample['image'])
+        # cv2.waitKey(0)
 
