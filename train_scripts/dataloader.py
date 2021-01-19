@@ -51,8 +51,8 @@ class ImageDataset(Dataset):
         if self.transform:
             result_image = self.transform(result_image)
 
-        # labels = self.df.iloc[:, 1:12].loc[idx].values.astype('float').reshape(11)
-        labels = 1
+        labels = self.df.iloc[:, 1:12].loc[idx].values.astype('float').reshape(11)
+        # labels = 1
 
         return result_image, labels
 

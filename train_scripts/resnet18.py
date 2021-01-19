@@ -11,11 +11,12 @@ class ResNet18(nn.Module):
         self.classifier = models.resnet18(pretrained=pretrained_backbone)
         self.classifier.conv1 = nn.Conv2d(num_input_channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.classifier.fc = nn.Linear(512, n_classes)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         if self.amp:
             with autocast():
-                x = self.classifier(x)
+                x = self.sigmoid(self.classifier(x))
         else:
-            x = self.classifier(x)
+            x = self.sigmoid(self.classifier(x))
         return x

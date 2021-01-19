@@ -26,16 +26,22 @@ train_loader = DataLoader(
     )
 
 model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=False)
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-criterion = torch.nn.CrossEntropyLoss()
+criterion = torch.nn.BCEWithLogitsLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-for epoch in range(2):  # loop over the dataset multiple times
+model.to(device)
+
+data = next(iter(train_loader))
+
+for epoch in range(1):
 
     running_loss = 0.0
-    for i, data in enumerate(train_loader, 0):
+    for i in range(1000):
+    # for i, data in enumerate(train_loader, 0):
         inputs, labels = data
+        inputs = inputs.to(device)
+        labels = labels.to(device)
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -47,7 +53,10 @@ for epoch in range(2):  # loop over the dataset multiple times
         optimizer.step()
 
         running_loss += loss.item()
-        if i % 2 == 0:  # print every 2000 mini-batches
+        if i % 1 == 0:  # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
+                  (epoch + 1, i + 1, running_loss))
             running_loss = 0.0
+
+print(labels.cpu())
+print(outputs.cpu())
