@@ -27,7 +27,7 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         image_name = '{}.jpg'.format(self.df.loc[idx]['StudyInstanceUID'])
         image_filepath = os.path.join(self.dataset_filepath, image_name)
-        image = cv2.imread(image_filepath)
+        image = cv2.imread(image_filepath, cv2.IMREAD_GRAYSCALE)
 
         image_h, image_w = image.shape[0], image.shape[1]
         if image_h / image_w > self.image_h_w_ratio:
@@ -45,13 +45,14 @@ class ImageDataset(Dataset):
         r_padding = int(new_w + (w_padding if w_padding % 1 == 0 else w_padding - 0.5))
         b_padding = int(new_h + (h_padding if h_padding % 1 == 0 else h_padding - 0.5))
 
-        result_image = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
-        result_image[t_padding:b_padding, l_padding:r_padding, :] = image
+        result_image = np.full((self.height_size, self.width_size), 0, dtype=np.uint8)
+        result_image[t_padding:b_padding, l_padding:r_padding] = image
 
         if self.transform:
             result_image = self.transform(result_image)
 
-        labels = self.df.iloc[:, 1:12].loc[idx].values.astype('float').reshape(-1, 11)
+        # labels = self.df.iloc[:, 1:12].loc[idx].values.astype('float').reshape(11)
+        labels = 1
 
         return result_image, labels
 

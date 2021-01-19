@@ -25,7 +25,7 @@ train_loader = DataLoader(
         pin_memory=True
     )
 
-model = ResNet18(11, pretrained_backbone=False, mixed_precision=False)
+model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 criterion = torch.nn.CrossEntropyLoss()
