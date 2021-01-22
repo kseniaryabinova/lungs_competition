@@ -16,7 +16,6 @@ train_df = pd.read_csv('../dataset/train.csv')
 
 image_transforms = transforms.Compose([
     transforms.ToTensor(),
-    transforms.RandomHorizontalFlip(),
 ])
 
 train_set = ImageDataset(train_df, image_transforms, '../dataset/train')
