@@ -3,3 +3,5 @@ ranzcr_env
 .ipynb_checkpoints
 .idea
 __pycache__
+*.pth
+
