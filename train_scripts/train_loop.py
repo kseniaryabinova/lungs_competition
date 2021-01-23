@@ -35,7 +35,6 @@ criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 model = model.to(device)
 
-
 for epoch in range(1):
 
     running_loss = 0.0
