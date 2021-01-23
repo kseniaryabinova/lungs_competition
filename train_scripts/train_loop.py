@@ -23,15 +23,17 @@ train_loader = DataLoader(
     )
 
 scaler = GradScaler()
-# scaler = None
 if scaler is None:
     model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=False)
 else:
     model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=True)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-criterion = torch.nn.BCEWithLogitsLoss()
+class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
+                 52.679245283018865, 9.152656621728786, 4.7851333032083145,
+                 8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
+criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-model.to(device)
+model = model.to(device)
 
 
 for epoch in range(1):
@@ -43,7 +45,7 @@ for epoch in range(1):
         current_loss = one_batch_train(batch, model, optimizer, criterion, device, scaler)
         running_loss += current_loss
 
-        if i % 1 == 0:  # print every 2000 mini-batches
+        if i % 1 == 0:
             print('[%d, %5d] loss: %.3f' %
                   (epoch + 1, i + 1, running_loss))
             running_loss = 0.0

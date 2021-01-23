@@ -39,21 +39,18 @@ def get_metric(predictions, ground_truth):
 def one_batch_train(batch, model, optimizer, criterion, device, scaler):
     current_loss = 0
     inputs, labels = batch
-    inputs = inputs.to(device)
-    labels = labels.to(device)
-
     optimizer.zero_grad()
 
     if scaler is not None:
         with autocast():
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            outputs = model(inputs.to(device))
+            loss = criterion(outputs, labels.to(device))
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
     else:
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
+        outputs = model(inputs.to(device))
+        loss = criterion(outputs, labels.to(device))
         loss.backward()
         optimizer.step()
 
