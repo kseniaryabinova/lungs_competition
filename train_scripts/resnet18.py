@@ -16,9 +16,7 @@ class ResNet18(nn.Module):
     def forward(self, x):
         if self.amp:
             with autocast():
-                # x = self.sigmoid(self.classifier(x))
                 x = self.classifier(x)
         else:
-            # x = self.sigmoid(self.classifier(x))
             x = self.classifier(x)
         return x

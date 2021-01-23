@@ -54,5 +54,4 @@ for epoch in range(1):
 
     torch.save(model.state_dict(), 'model.pth')
 
-
 # print(eval_model(model, train_loader, device, criterion))
