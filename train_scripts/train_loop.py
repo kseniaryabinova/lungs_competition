@@ -18,21 +18,21 @@ train_image_transforms = transforms.Compose([
     transforms.ToTensor(),
     transforms.RandomRotation(degrees=10),
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=256)
+train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=128)
 train_loader = DataLoader(train_set, batch_size=6400, shuffle=True, num_workers=40, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = transforms.Compose([transforms.ToTensor()])
-val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=256)
+val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=128)
 val_loader = DataLoader(val_set, batch_size=6400, num_workers=40, pin_memory=True)
 
-os.makedirs('checkpoints_34', exist_ok=True)
+os.makedirs('checkpoints', exist_ok=True)
 
 scaler = GradScaler()
 if scaler is None:
-    model = ResNet34(11, 1, pretrained_backbone=False, mixed_precision=False)
+    model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=False)
 else:
-    model = ResNet34(11, 1, pretrained_backbone=False, mixed_precision=True)
+    model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=True)
 if torch.cuda.device_count() > 1:
     model = torch.nn.DataParallel(model)
 
@@ -46,19 +46,25 @@ model = model.to(device)
 
 for epoch in range(40):
 
-    running_loss = 0.0
+    total_train_loss = 0.0
+    train_duration = 0
+    iter_counter = 0
     model.train()
 
     for i, batch in enumerate(train_loader, 0):
-        current_loss = one_batch_train(batch, model, optimizer, criterion, device, scaler)
-        running_loss += current_loss
+        current_loss, duration = one_batch_train(batch, model, optimizer, criterion, device, scaler)
+        total_train_loss += current_loss
+        train_duration += duration
+        iter_counter += 1
 
-        if i % 1 == 0:
-            print('[epoch %d, iteration %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss))
-            running_loss = 0.0
+    total_train_loss /= iter_counter
 
     model.eval()
-    total_loss, avg_auc,  = eval_model(model, val_loader, device, criterion)
+    total_val_loss, avg_auc, val_duration = eval_model(model, val_loader, device, criterion)
 
-    torch.save(model.state_dict(), 'checkpoints_34/model_epoch_{}_auc_{}_loss_{}.pth'.format(epoch, avg_auc, total_loss))
+    print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f]\t'
+          'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
+          (epoch + 1, train_duration, total_train_loss, val_duration, total_val_loss, avg_auc))
+
+    torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
+        epoch + 1, round(avg_auc, 2), round(total_val_loss, 2)))

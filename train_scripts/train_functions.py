@@ -4,6 +4,8 @@ from sklearn.metrics import roc_auc_score
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 
+import time
+
 
 def eval_model(model, val_loader: DataLoader,
                device: torch.device, criterion):
@@ -12,6 +14,7 @@ def eval_model(model, val_loader: DataLoader,
     total_loss = 0
     sigmoid = torch.nn.Sigmoid()
     iter_counter = 0
+    start_time = time.time()
 
     with torch.no_grad():
         for batch in val_loader:
@@ -28,7 +31,7 @@ def eval_model(model, val_loader: DataLoader,
     total_loss /= iter_counter
     avg_auc = get_metric(np.array(predictions), np.array(ground_truth))
 
-    return total_loss, avg_auc
+    return total_loss, avg_auc, time.time() - start_time
 
 
 def get_metric(predictions, ground_truth):
@@ -40,6 +43,7 @@ def one_batch_train(batch, model, optimizer, criterion, device, scaler):
     current_loss = 0
     inputs, labels = batch
     optimizer.zero_grad()
+    start_time = time.time()
 
     if scaler is not None:
         with autocast():
@@ -56,4 +60,4 @@ def one_batch_train(batch, model, optimizer, criterion, device, scaler):
 
     current_loss += loss.item()
 
-    return current_loss
+    return current_loss, time.time() - start_time
