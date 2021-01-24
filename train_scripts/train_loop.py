@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from dataloader import ImageDataset, ValImageDataset
-from resnet18 import ResNet18
+from resnet import ResNet18, ResNet34
 from train_functions import one_batch_train, eval_model
 
 torch.manual_seed(25)
@@ -18,21 +18,21 @@ train_image_transforms = transforms.Compose([
     transforms.ToTensor(),
     transforms.RandomRotation(degrees=10),
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train')
+train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=256)
 train_loader = DataLoader(train_set, batch_size=6400, shuffle=True, num_workers=40, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = transforms.Compose([transforms.ToTensor()])
-val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train')
+val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=256)
 val_loader = DataLoader(val_set, batch_size=6400, num_workers=40, pin_memory=True)
 
 os.makedirs('checkpoints_34', exist_ok=True)
 
 scaler = GradScaler()
 if scaler is None:
-    model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=False)
+    model = ResNet34(11, 1, pretrained_backbone=False, mixed_precision=False)
 else:
-    model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=True)
+    model = ResNet34(11, 1, pretrained_backbone=False, mixed_precision=True)
 if torch.cuda.device_count() > 1:
     model = torch.nn.DataParallel(model)
 

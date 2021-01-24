@@ -9,7 +9,7 @@ from torchvision import transforms
 
 import pandas as pd
 
-from resnet18 import ResNet18
+from resnet import ResNet18
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
