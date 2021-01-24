@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import torch
 from torch.cuda.amp import GradScaler
@@ -5,22 +7,25 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from dataloader import ImageDataset
+from export_csv import ValImageDataset
 from resnet18 import ResNet18
-from train_functions import one_batch_train
+from train_functions import one_batch_train, eval_model
 
 torch.manual_seed(25)
 
 train_df = pd.read_csv('../dataset/train.csv')
 image_transforms = transforms.Compose([
+    transforms.RandomRotation(degrees=10),
     transforms.ToTensor(),
 ])
 train_set = ImageDataset(train_df, image_transforms, '../dataset/train')
-train_loader = DataLoader(
-        train_set,
-        batch_size=16,
-        num_workers=12,
-        pin_memory=True
-    )
+train_loader = DataLoader(train_set, batch_size=16, num_workers=12, pin_memory=True)
+
+image_transforms = transforms.Compose([transforms.ToTensor()])
+val_set = ValImageDataset(image_transforms, '../dataset/test')
+val_loader = DataLoader(val_set, batch_size=32, num_workers=12, pin_memory=True)
+
+os.makedirs('checkpoints', exist_ok=True)
 
 scaler = GradScaler()
 if scaler is None:
@@ -47,14 +52,12 @@ for epoch in range(1):
         current_loss = one_batch_train(batch, model, optimizer, criterion, device, scaler)
         running_loss += current_loss
 
-        if i % 1 == 0:
-            print('[%d, %5d] loss: %.3f' %
+        if i % 100 == 0:
+            print('[epoch %d, iteration %5d] loss: %.3f' %
                   (epoch + 1, i + 1, running_loss))
             running_loss = 0.0
 
-        if i == 100:
-            break
+    model.eval()
+    avg_auc = eval_model(model, train_loader, device, criterion)
 
-    torch.save(model.state_dict(), 'model.pth')
-
-# print(eval_model(model, train_loader, device, criterion))
+    torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}.pth'.format(epoch, avg_auc))

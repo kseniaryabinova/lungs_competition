@@ -7,8 +7,6 @@ from torch.utils.data import DataLoader
 
 def eval_model(model: torch.nn.Module, val_loader: DataLoader,
                device: torch.device, criterion):
-    model.eval()
-
     predictions = []
     ground_truth = []
     total_loss = 0
