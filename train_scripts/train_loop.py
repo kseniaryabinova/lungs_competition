@@ -21,12 +21,12 @@ train_image_transforms = transforms.Compose([
 train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train')
 train_loader = DataLoader(train_set, batch_size=6400, shuffle=True, num_workers=40, pin_memory=True)
 
-val_df = df[df['split'] == 1]
+val_df = df[df['split'] == 0]
 val_image_transforms = transforms.Compose([transforms.ToTensor()])
-val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/test')
+val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train')
 val_loader = DataLoader(val_set, batch_size=6400, num_workers=40, pin_memory=True)
 
-os.makedirs('checkpoints', exist_ok=True)
+os.makedirs('checkpoints_34', exist_ok=True)
 
 scaler = GradScaler()
 if scaler is None:
@@ -59,6 +59,6 @@ for epoch in range(40):
             running_loss = 0.0
 
     model.eval()
-    total_loss, avg_auc,  = eval_model(model, train_loader, device, criterion)
+    total_loss, avg_auc,  = eval_model(model, val_loader, device, criterion)
 
-    torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(epoch, avg_auc, total_loss))
+    torch.save(model.state_dict(), 'checkpoints_34/model_epoch_{}_auc_{}_loss_{}.pth'.format(epoch, avg_auc, total_loss))

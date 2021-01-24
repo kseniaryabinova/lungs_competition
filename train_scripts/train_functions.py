@@ -11,6 +11,7 @@ def eval_model(model, val_loader: DataLoader,
     ground_truth = []
     total_loss = 0
     sigmoid = torch.nn.Sigmoid()
+    iter_counter = 0
 
     with torch.no_grad():
         for batch in val_loader:
@@ -22,8 +23,9 @@ def eval_model(model, val_loader: DataLoader,
 
             batch_loss = criterion(prediction_batch, labels.to(device))
             total_loss += batch_loss.item()
+            iter_counter += 1
 
-    total_loss /= len(val_loader)
+    total_loss /= iter_counter
     avg_auc = get_metric(np.array(predictions), np.array(ground_truth))
 
     return total_loss, avg_auc
