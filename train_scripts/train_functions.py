@@ -16,7 +16,7 @@ def eval_model(model: torch.nn.Module, val_loader: DataLoader,
     with torch.no_grad():
         for batch in val_loader:
             images, labels = batch
-            prediction_batch = model(images.to(device))
+            prediction_batch = model.inference(images.to(device))
 
             predictions.extend(prediction_batch.cpu().numpy())
             ground_truth.extend(labels.numpy())

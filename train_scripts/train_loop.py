@@ -27,6 +27,9 @@ if scaler is None:
     model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=False)
 else:
     model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=True)
+if torch.cuda.device_count() > 1:
+    model = torch.nn.DataParallel(model)
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
                  52.679245283018865, 9.152656621728786, 4.7851333032083145,

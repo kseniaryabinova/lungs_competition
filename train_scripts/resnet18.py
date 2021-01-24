@@ -20,3 +20,11 @@ class ResNet18(nn.Module):
         else:
             x = self.classifier(x)
         return x
+
+    def inference(self, x):
+        if self.amp:
+            with autocast():
+                x = self.sigmoid(self.classifier(x))
+        else:
+            x = self.sigmoid(self.classifier(x))
+        return x
