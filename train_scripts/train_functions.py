@@ -5,23 +5,23 @@ from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 
 
-def eval_model(model: torch.nn.Module, val_loader: DataLoader,
+def eval_model(model, val_loader: DataLoader,
                device: torch.device, criterion):
     predictions = []
     ground_truth = []
     total_loss = 0
+    sigmoid = torch.nn.Sigmoid()
 
     with torch.no_grad():
         for batch in val_loader:
             images, labels = batch
-            prediction_batch = model.inference(images.to(device))
+            prediction_batch = model(images.to(device))
 
-            predictions.extend(prediction_batch.cpu().numpy())
+            predictions.extend(sigmoid(prediction_batch).cpu().numpy())
             ground_truth.extend(labels.numpy())
 
             batch_loss = criterion(prediction_batch, labels.to(device))
             total_loss += batch_loss.item()
-            break
 
     total_loss /= len(val_loader)
     avg_auc = get_metric(np.array(predictions), np.array(ground_truth))
