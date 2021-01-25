@@ -23,8 +23,7 @@ def eval_model(model, val_loader: DataLoader,
             if scaler is not None:
                 with autocast():
                     outputs = model(inputs.to(device))
-                    loss = criterion(outputs, labels.to(device))
-                batch_loss = scaler.scale(loss)
+                    batch_loss = criterion(outputs, labels.to(device))
             else:
                 outputs = model(inputs.to(device))
                 batch_loss = criterion(outputs, labels.to(device))
