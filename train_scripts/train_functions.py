@@ -45,25 +45,31 @@ def get_metric(predictions, ground_truth):
     return np.mean(aucs)
 
 
-def one_batch_train(batch, model, optimizer, criterion, device, scaler):
-    current_loss = 0
-    inputs, labels = batch
-    optimizer.zero_grad()
+def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
+    total_loss = 0
+    iter_counter = 0
     start_time = time.time()
 
-    if scaler is not None:
-        with autocast():
+    for batch in train_loader:
+        inputs, labels = batch
+        optimizer.zero_grad()
+
+        if scaler is not None:
+            with autocast():
+                outputs = model(inputs.to(device))
+                loss = criterion(outputs, labels.to(device))
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
             outputs = model(inputs.to(device))
             loss = criterion(outputs, labels.to(device))
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-    else:
-        outputs = model(inputs.to(device))
-        loss = criterion(outputs, labels.to(device))
-        loss.backward()
-        optimizer.step()
+            loss.backward()
+            optimizer.step()
 
-    current_loss += loss.item()
+        iter_counter += 1
+        total_loss += loss.item()
 
-    return current_loss, time.time() - start_time
+    total_loss /= iter_counter
+
+    return total_loss, time.time() - start_time

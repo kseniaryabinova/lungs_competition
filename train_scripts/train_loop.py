@@ -12,7 +12,7 @@ import albumentations as alb
 from adas_optimizer import Adas
 from dataloader import ImageDataset
 from resnet import ResNet18, ResNet34
-from train_functions import one_batch_train, eval_model
+from train_functions import one_epoch_train, eval_model
 
 torch.manual_seed(25)
 
@@ -50,22 +50,13 @@ optimizer = Adas(model.parameters())
 model = model.to(device)
 
 for epoch in range(40):
-
-    total_train_loss = 0.0
-    train_duration = 0
-    iter_counter = 0
     model.train()
-
-    for batch in train_loader:
-        current_loss, duration = one_batch_train(batch, model, optimizer, criterion, device, scaler)
-        total_train_loss += current_loss
-        train_duration += duration
-        iter_counter += 1
-
-    total_train_loss /= iter_counter
+    total_train_loss, train_duration = one_epoch_train(
+        model, train_loader, optimizer, criterion, device, scaler)
 
     model.eval()
-    total_val_loss, avg_auc, val_duration = eval_model(model, val_loader, device, criterion, scaler)
+    total_val_loss, avg_auc, val_duration = eval_model(
+        model, val_loader, device, criterion, scaler)
 
     print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f]\t\t'
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
