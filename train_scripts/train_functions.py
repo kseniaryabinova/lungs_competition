@@ -8,7 +8,7 @@ import time
 
 
 def eval_model(model, val_loader: DataLoader,
-               device: torch.device, criterion):
+               device: torch.device, criterion, scaler):
     predictions = []
     ground_truth = []
     total_loss = 0
@@ -18,13 +18,20 @@ def eval_model(model, val_loader: DataLoader,
 
     with torch.no_grad():
         for batch in val_loader:
-            images, labels = batch
-            prediction_batch = model(images.to(device))
+            inputs, labels = batch
 
-            predictions.extend(sigmoid(prediction_batch).cpu().numpy())
+            if scaler is not None:
+                with autocast():
+                    outputs = model(inputs.to(device))
+                    loss = criterion(outputs, labels.to(device))
+                batch_loss = scaler.scale(loss)
+            else:
+                outputs = model(inputs.to(device))
+                batch_loss = criterion(outputs, labels.to(device))
+
+            predictions.extend(sigmoid(outputs).cpu().numpy())
             ground_truth.extend(labels.numpy())
 
-            batch_loss = criterion(prediction_batch, labels.to(device))
             total_loss += batch_loss.item()
             iter_counter += 1
 
