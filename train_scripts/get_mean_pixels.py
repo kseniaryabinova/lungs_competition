@@ -11,12 +11,13 @@ df = pd.read_csv('../dataset/train_with_split.csv')
 channel = 0
 total = 0
 
+
 for i, idx in enumerate(df[df['split'] == 1]['StudyInstanceUID']):
     if i % 2000 == 0:
         print(i+1, time.time())
 
     filepath = os.path.join('../dataset/train', '{}.jpg'.format(idx))
-    img = cv2.imread(filepath)
+    img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
     total += img.shape[0] * img.shape[1]
     channel += np.sum(img)
 
@@ -29,9 +30,12 @@ for i, idx in enumerate(df[df['split'] == 1]['StudyInstanceUID']):
         print(i+1, time.time())
 
     filepath = os.path.join('../dataset/train', '{}.jpg'.format(idx))
-    img = cv2.imread(filepath)
+    img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
 
     channel += np.sum((img - channel_mean) ** 2)
 
 channel_std = np.sqrt(channel / total)
 print(channel_std)
+
+
+# mean = 121.39437046643081, std = 60.81568972508337
