@@ -1,10 +1,13 @@
 import os
+import time
 
 import pandas as pd
+import numpy as np
+
 import torch
 from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
-from torchvision import transforms
+from torch.utils.tensorboard import SummaryWriter
 
 from albumentations.pytorch import ToTensorV2, ToTensor
 import albumentations as alb
@@ -15,6 +18,9 @@ from resnet import ResNet18, ResNet34
 from train_functions import one_epoch_train, eval_model
 
 torch.manual_seed(25)
+np.random.seed(25)
+
+writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
@@ -58,6 +64,9 @@ for epoch in range(40):
     total_val_loss, val_avg_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
+    writer.add_scalars('loss', {'train': total_train_loss, 'val': total_val_loss})
+    writer.add_scalars('avg_auc', {'train': train_avg_auc, 'val': val_avg_auc})
+
     print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f, avg auc: %.3f]\t\t'
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
           (epoch + 1, train_duration, total_train_loss, train_avg_auc,
@@ -65,3 +74,5 @@ for epoch in range(40):
 
     # torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
     #     epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2)))
+
+writer.close()
