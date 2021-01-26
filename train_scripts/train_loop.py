@@ -57,11 +57,11 @@ model = model.to(device)
 
 for epoch in range(40):
     model.train()
-    total_train_loss, train_avg_auc, train_duration = one_epoch_train(
+    total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
 
     model.eval()
-    total_val_loss, val_avg_auc, val_duration = eval_model(
+    total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
     writer.add_scalars('loss', {'train': total_train_loss, 'val': total_val_loss})
@@ -71,6 +71,8 @@ for epoch in range(40):
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
           (epoch + 1, train_duration, total_train_loss, train_avg_auc,
            val_duration, total_val_loss, val_avg_auc))
+
+    print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
     # torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
     #     epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2)))

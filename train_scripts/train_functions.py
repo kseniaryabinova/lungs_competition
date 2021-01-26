@@ -35,14 +35,14 @@ def eval_model(model, val_loader: DataLoader,
             iter_counter += 1
 
     total_loss /= iter_counter
-    avg_auc = get_metric(np.array(predictions), np.array(ground_truth))
+    avg_auc, aucs = get_metric(np.array(predictions), np.array(ground_truth))
 
-    return total_loss, avg_auc, time.time() - start_time
+    return total_loss, avg_auc, aucs, time.time() - start_time
 
 
 def get_metric(predictions, ground_truth):
     aucs = roc_auc_score(ground_truth, predictions, average=None)
-    return np.mean(aucs)
+    return np.mean(aucs), aucs
 
 
 def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
@@ -76,6 +76,6 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
         total_loss += loss.item()
 
     total_loss /= iter_counter
-    avg_auc = get_metric(np.array(predictions), np.array(ground_truth))
+    avg_auc, aucs = get_metric(np.array(predictions), np.array(ground_truth))
 
-    return total_loss, avg_auc, time.time() - start_time
+    return total_loss, avg_auc, aucs, time.time() - start_time
