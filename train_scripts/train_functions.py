@@ -28,7 +28,7 @@ def eval_model(model, val_loader: DataLoader,
                 outputs = model(inputs.to(device))
                 batch_loss = criterion(outputs, labels.to(device))
 
-            predictions.extend(sigmoid(outputs).cpu().numpy())
+            predictions.extend(sigmoid(outputs).cpu().detach().numpy())
             ground_truth.extend(labels.numpy())
 
             total_loss += batch_loss.item()
@@ -48,6 +48,9 @@ def get_metric(predictions, ground_truth):
 def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
     total_loss = 0
     iter_counter = 0
+    predictions = []
+    ground_truth = []
+    sigmoid = torch.nn.Sigmoid()
     start_time = time.time()
 
     for batch in train_loader:
@@ -67,9 +70,12 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
             loss.backward()
             optimizer.step()
 
+        predictions.extend(sigmoid(outputs).cpu().detach().numpy())
+        ground_truth.extend(labels.numpy())
         iter_counter += 1
         total_loss += loss.item()
 
     total_loss /= iter_counter
+    avg_auc = get_metric(np.array(predictions), np.array(ground_truth))
 
-    return total_loss, time.time() - start_time
+    return total_loss, avg_auc, time.time() - start_time

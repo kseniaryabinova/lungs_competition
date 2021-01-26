@@ -19,8 +19,8 @@ torch.manual_seed(25)
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
-    alb.CLAHE(p=0.5),
-    alb.GridDistortion(p=0.5),
+    # alb.CLAHE(p=0.5),
+    # alb.GridDistortion(p=0.5),
     ToTensor()
 ])
 train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=128)
@@ -51,16 +51,17 @@ model = model.to(device)
 
 for epoch in range(40):
     model.train()
-    total_train_loss, train_duration = one_epoch_train(
+    total_train_loss, train_avg_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
 
     model.eval()
-    total_val_loss, avg_auc, val_duration = eval_model(
+    total_val_loss, val_avg_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
-    print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f]\t\t'
+    print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f, avg auc: %.3f]\t\t'
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
-          (epoch + 1, train_duration, total_train_loss, val_duration, total_val_loss, avg_auc))
+          (epoch + 1, train_duration, total_train_loss, train_avg_auc,
+           val_duration, total_val_loss, val_avg_auc))
 
-    torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
-        epoch + 1, round(avg_auc, 2), round(total_val_loss, 2)))
+    # torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
+    #     epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2)))
