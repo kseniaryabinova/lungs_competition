@@ -1,10 +1,16 @@
 import os
 import time
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+# os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+
 import pandas as pd
 import numpy as np
 
 import torch
+
+# torch.set_deterministic(True)
+
 from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -29,13 +35,13 @@ train_image_transforms = alb.Compose([
     # alb.GridDistortion(p=0.5),
     ToTensor()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=128)
+train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=128)
 # train_set = ImageDataset(train_df, train_image_transforms, '../dataset/train', width_size=128)
 train_loader = DataLoader(train_set, batch_size=6400, shuffle=True, num_workers=40, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([ToTensor()])
-val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=128)
+val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=128)
 # val_set = ImageDataset(val_df, val_image_transforms, '../dataset/train', width_size=128)
 val_loader = DataLoader(val_set, batch_size=6400, num_workers=40, pin_memory=True)
 
@@ -43,7 +49,7 @@ os.makedirs('checkpoints', exist_ok=True)
 
 scaler = GradScaler()
 # scaler = None
-model = ResNet18(11, 1, pretrained_backbone=False, mixed_precision=True)
+model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
 if torch.cuda.device_count() > 1:
     model = torch.nn.DataParallel(model)
 
@@ -74,7 +80,7 @@ for epoch in range(40):
 
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
-    # torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
-    #     epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2)))
+    torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
+        epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2)))
 
 writer.close()

@@ -7,4 +7,5 @@ __pycache__
 *.csv
 checkpoints
 tensorboard_runs
+pip_packages.txt
 

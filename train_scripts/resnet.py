@@ -11,7 +11,7 @@ class ResNet18(nn.Module):
         super().__init__()
         self.amp = mixed_precision
         self.classifier = models.resnet18(pretrained=pretrained_backbone)
-        self.classifier.conv1 = nn.Conv2d(num_input_channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # self.classifier.conv1 = nn.Conv2d(num_input_channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.classifier.fc = nn.Linear(512, n_classes)
         self.sigmoid = nn.Sigmoid()
 
