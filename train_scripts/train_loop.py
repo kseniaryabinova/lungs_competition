@@ -2,7 +2,7 @@ import os
 import time
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-# os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 import pandas as pd
 import numpy as np
@@ -57,27 +57,31 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
                  52.679245283018865, 9.152656621728786, 4.7851333032083145,
                  8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
+class_names = [
+    'ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
+    'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
+    'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present'
+]
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 optimizer = Adas(model.parameters())
 model = model.to(device)
 
 for epoch in range(40):
-    model.train()
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
 
-    model.eval()
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
-    writer.add_scalars('loss', {'train': total_train_loss, 'val': total_val_loss})
-    writer.add_scalars('avg_auc', {'train': train_avg_auc, 'val': val_avg_auc})
+    writer.add_scalar('loss', {'train': total_train_loss, 'val': total_val_loss})
+    writer.add_scalar('avg_auc', {'train': train_avg_auc, 'val': val_avg_auc})
+    for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
+        writer.add_scalar('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2})
 
     print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f, avg auc: %.3f]\t\t'
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
           (epoch + 1, train_duration, total_train_loss, train_avg_auc,
            val_duration, total_val_loss, val_avg_auc))
-
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
     torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(

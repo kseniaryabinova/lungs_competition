@@ -23,14 +23,6 @@ class ResNet18(nn.Module):
             x = self.classifier(x)
         return x
 
-    def inference(self, x):
-        if self.amp:
-            with autocast():
-                x = self.sigmoid(self.classifier(x))
-        else:
-            x = self.sigmoid(self.classifier(x))
-        return x
-
 
 class ResNet34(nn.Module):
     def __init__(self, n_classes, num_input_channel, pretrained_backbone, mixed_precision):
@@ -49,14 +41,6 @@ class ResNet34(nn.Module):
             x = self.classifier(x)
         return x
 
-    def inference(self, x):
-        if self.amp:
-            with autocast():
-                x = self.sigmoid(self.classifier(x))
-        else:
-            x = self.sigmoid(self.classifier(x))
-        return x
-
 
 class ResNet50(nn.Module):
     def __init__(self, n_classes, num_input_channel, pretrained_backbone, mixed_precision):
@@ -73,14 +57,6 @@ class ResNet50(nn.Module):
                 x = self.classifier(x)
         else:
             x = self.classifier(x)
-        return x
-
-    def inference(self, x):
-        if self.amp:
-            with autocast():
-                x = self.sigmoid(self.classifier(x))
-        else:
-            x = self.sigmoid(self.classifier(x))
         return x
 
 

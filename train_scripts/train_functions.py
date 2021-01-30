@@ -16,6 +16,8 @@ def eval_model(model, val_loader: DataLoader,
     iter_counter = 0
     start_time = time.time()
 
+    model.eval()
+
     with torch.no_grad():
         for batch in val_loader:
             inputs, labels = batch
@@ -52,6 +54,8 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
     ground_truth = []
     sigmoid = torch.nn.Sigmoid()
     start_time = time.time()
+
+    model.train()
 
     for batch in train_loader:
         inputs, labels = batch
