@@ -4,14 +4,12 @@ import shutil
 import time
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+# os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 import pandas as pd
 import numpy as np
 
 import torch
-
-# torch.set_deterministic(True)
 
 from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
@@ -41,7 +39,7 @@ train_image_transforms = alb.Compose([
 ])
 train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=128)
 # train_set = ImageDataset(train_df, train_image_transforms, '../dataset/train', width_size=128)
-train_loader = DataLoader(train_set, batch_size=6400, shuffle=True, num_workers=40, pin_memory=True)
+train_loader = DataLoader(train_set, batch_size=64, shuffle=True, num_workers=48, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
@@ -50,7 +48,7 @@ val_image_transforms = alb.Compose([
 ])
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=128)
 # val_set = ImageDataset(val_df, val_image_transforms, '../dataset/train', width_size=128)
-val_loader = DataLoader(val_set, batch_size=6400, num_workers=40, pin_memory=True)
+val_loader = DataLoader(val_set, batch_size=64, num_workers=48, pin_memory=True)
 
 os.makedirs('checkpoints', exist_ok=True)
 
@@ -80,8 +78,8 @@ for epoch in range(40):
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
-    writer.add_scalars('loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
-    writer.add_scalars('avg_auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
+    writer.add_scalars('avg/loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
+    writer.add_scalars('avg/auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
     for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
         writer.add_scalars('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2}, epoch)
 
