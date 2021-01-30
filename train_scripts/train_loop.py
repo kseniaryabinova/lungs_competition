@@ -1,4 +1,6 @@
+import datetime
 import os
+import shutil
 import time
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
@@ -26,6 +28,7 @@ from train_functions import one_epoch_train, eval_model
 torch.manual_seed(25)
 np.random.seed(25)
 
+shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
 df = pd.read_csv('train_with_split.csv')
@@ -33,14 +36,18 @@ train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
     # alb.CLAHE(p=0.5),
     # alb.GridDistortion(p=0.5),
-    ToTensor()
+    alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2()
 ])
 train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=128)
 # train_set = ImageDataset(train_df, train_image_transforms, '../dataset/train', width_size=128)
 train_loader = DataLoader(train_set, batch_size=6400, shuffle=True, num_workers=40, pin_memory=True)
 
 val_df = df[df['split'] == 0]
-val_image_transforms = alb.Compose([ToTensor()])
+val_image_transforms = alb.Compose([
+    alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2()
+])
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=128)
 # val_set = ImageDataset(val_df, val_image_transforms, '../dataset/train', width_size=128)
 val_loader = DataLoader(val_set, batch_size=6400, num_workers=40, pin_memory=True)
@@ -73,15 +80,15 @@ for epoch in range(40):
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
-    writer.add_scalar('loss', {'train': total_train_loss, 'val': total_val_loss})
-    writer.add_scalar('avg_auc', {'train': train_avg_auc, 'val': val_avg_auc})
+    writer.add_scalars('loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
+    writer.add_scalars('avg_auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
     for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
-        writer.add_scalar('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2})
+        writer.add_scalars('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2}, epoch)
 
     print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f, avg auc: %.3f]\t\t'
-          'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]' %
+          'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]\tCurrent time %s' %
           (epoch + 1, train_duration, total_train_loss, train_avg_auc,
-           val_duration, total_val_loss, val_avg_auc))
+           val_duration, total_val_loss, val_avg_auc, str(datetime.datetime.now())))
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
     torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
