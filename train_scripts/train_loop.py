@@ -4,7 +4,7 @@ import shutil
 import time
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':64:8'
+# os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':32:8'
 
 import pandas as pd
 import numpy as np
@@ -21,6 +21,7 @@ import albumentations as alb
 from adas_optimizer import Adas
 from dataloader import ImageDataset
 from resnet import ResNet18, ResNet34
+from efficient_net import EfficientNet
 from train_functions import one_epoch_train, eval_model
 
 torch.manual_seed(25)
@@ -32,28 +33,28 @@ writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
-    alb.CLAHE(p=0.5),
-    alb.GridDistortion(p=0.5),
+    # alb.CLAHE(p=0.5),
+    # alb.GridDistortion(p=0.5),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=128)
-# train_set = ImageDataset(train_df, train_image_transforms, '../dataset/train', width_size=128)
-train_loader = DataLoader(train_set, batch_size=64, shuffle=True, num_workers=48, pin_memory=True, prefetch_factor=4)
+train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=640)
+train_loader = DataLoader(train_set, batch_size=32, shuffle=True, num_workers=48, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=128)
-# val_set = ImageDataset(val_df, val_image_transforms, '../dataset/train', width_size=128)
-val_loader = DataLoader(val_set, batch_size=64, num_workers=48, pin_memory=True, prefetch_factor=4)
+val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=640)
+val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True)
 
-os.makedirs('checkpoints', exist_ok=True)
+checkpoints_dir_name = 'tf_efficientnet_b5_ns'
+os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 scaler = None
-model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
+# model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
+model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
 if torch.cuda.device_count() > 1:
     scaler = GradScaler()
     model = torch.nn.DataParallel(model)
@@ -88,7 +89,7 @@ for epoch in range(40):
            val_duration, total_val_loss, val_avg_auc, str(datetime.datetime.now())))
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
-    torch.save(model.state_dict(), 'checkpoints/model_epoch_{}_auc_{}_loss_{}.pth'.format(
-        epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2)))
+    torch.save(model.state_dict(), os.path.join(checkpoints_dir_name, 'model_epoch_{}_auc_{}_loss_{}.pth'.format(
+        epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2))))
 
 writer.close()
