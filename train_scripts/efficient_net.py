@@ -6,7 +6,8 @@ from torchsummary import summary
 
 
 class EfficientNet(nn.Module):
-    def __init__(self, n_classes, pretrained_backbone, mixed_precision, model_name='tf_efficientnet_b5_ns'):
+    def __init__(self, n_classes, pretrained_backbone, mixed_precision,
+                 model_name='tf_efficientnet_b5_ns', checkpoint_path=''):
         super().__init__()
         self.amp = mixed_precision
         self.model = timm.create_model(model_name, pretrained=pretrained_backbone)
@@ -15,6 +16,17 @@ class EfficientNet(nn.Module):
         self.model.classifier = nn.Identity()
         self.pooling = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(n_features, 11)
+
+        if checkpoint_path is not None:
+            state_dict = torch.load(checkpoint_path)
+
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            for k, v in state_dict.items():
+                name = k[7:]  # remove `module.`
+                new_state_dict[name] = v
+
+            self.load_state_dict(new_state_dict)
 
     def forward(self, x):
         if self.amp:

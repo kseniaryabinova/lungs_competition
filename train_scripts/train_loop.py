@@ -33,8 +33,8 @@ writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
-    # alb.CLAHE(p=0.5),
-    # alb.GridDistortion(p=0.5),
+    alb.CLAHE(p=0.5),
+    alb.GridDistortion(p=0.5),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
@@ -49,12 +49,15 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=640)
 val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b5_ns'
+checkpoints_dir_name = 'tf_efficientnet_b5_ns_augs'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
-scaler = None
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
-model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
+model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True,
+                     model_name='tf_efficientnet_b5_ns',
+                     checkpoint_path='tf_efficientnet_b5_ns_augs/model_epoch_8_auc_0.91_loss_0.44.pth')
+
+scaler = None
 if torch.cuda.device_count() > 1:
     scaler = GradScaler()
     model = torch.nn.DataParallel(model)
