@@ -6,7 +6,7 @@ import shutil
 import time
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':32:8'
+os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':64:8'
 
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from albumentations.pytorch import ToTensorV2, ToTensor
+from albumentations.pytorch import ToTensorV2
 import albumentations as alb
 
 from adas_optimizer import Adas
