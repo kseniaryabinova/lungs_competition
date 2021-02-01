@@ -45,7 +45,7 @@ def eval_model(model, val_loader: DataLoader,
 def get_metric(predictions, ground_truth):
     predictions[predictions == -np.inf] = 0.
     predictions[predictions == np.inf] = 1.
-    predictions[predictions == np.nan] = 0
+    predictions[predictions == np.nan] = 0.
     aucs = roc_auc_score(ground_truth, predictions, average=None)
     return np.mean(aucs), aucs
 

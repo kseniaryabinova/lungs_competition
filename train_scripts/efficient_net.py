@@ -7,7 +7,7 @@ from torchsummary import summary
 
 class EfficientNet(nn.Module):
     def __init__(self, n_classes, pretrained_backbone, mixed_precision,
-                 model_name='tf_efficientnet_b5_ns', checkpoint_path=''):
+                 model_name='tf_efficientnet_b5_ns', checkpoint_path=None):
         super().__init__()
         self.amp = mixed_precision
         self.model = timm.create_model(model_name, pretrained=pretrained_backbone)

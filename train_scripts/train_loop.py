@@ -38,24 +38,23 @@ train_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=640)
-train_loader = DataLoader(train_set, batch_size=32, shuffle=True, num_workers=48, pin_memory=True)
+train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=800)
+train_loader = DataLoader(train_set, batch_size=20, shuffle=True, num_workers=48, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=640)
-val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True)
+val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=800)
+val_loader = DataLoader(val_set, batch_size=20, num_workers=48, pin_memory=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b5_ns_augs'
+checkpoints_dir_name = 'tf_efficientnet_b5_ns_augs_800'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
 model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True,
-                     model_name='tf_efficientnet_b5_ns',
-                     checkpoint_path='tf_efficientnet_b5_ns_augs/model_epoch_8_auc_0.91_loss_0.44.pth')
+                     model_name='tf_efficientnet_b5_ns')
 
 scaler = None
 if torch.cuda.device_count() > 1:
