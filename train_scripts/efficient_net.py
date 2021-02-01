@@ -15,7 +15,7 @@ class EfficientNet(nn.Module):
         self.model.global_pool = nn.Identity()
         self.model.classifier = nn.Identity()
         self.pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(n_features, 11)
+        self.classifier = nn.Linear(n_features, n_classes)
 
         if checkpoint_path is not None:
             state_dict = torch.load(checkpoint_path)

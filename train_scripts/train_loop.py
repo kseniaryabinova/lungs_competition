@@ -1,10 +1,12 @@
+# from train_func_for_ddp import train_function
+
 import datetime
 import os
 import shutil
 import time
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-# os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':32:8'
+os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':32:8'
 
 import pandas as pd
 import numpy as np
@@ -26,6 +28,20 @@ from train_functions import one_epoch_train, eval_model
 
 torch.manual_seed(25)
 np.random.seed(25)
+
+
+### ---------------------- DistributedDataParallel ----------------------
+# gpus = 4
+# nodes = 1
+# node_rank = 0
+# world_size = gpus * nodes                #
+# os.environ['MASTER_ADDR'] = '192.168.6.222'              #
+# os.environ['MASTER_PORT'] = '8888'                      #
+#
+# if __name__ == '__main__':
+#     torch.multiprocessing.spawn(fn=train_function, nprocs=gpus, args=(world_size, node_rank, gpus), join=True)
+### ---------------------- DistributedDataParallel ----------------------
+
 
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
@@ -54,7 +70,8 @@ os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
 model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True,
-                     model_name='tf_efficientnet_b5_ns')
+                     model_name='tf_efficientnet_b5_ns',
+                     checkpoint_path='tf_efficientnet_b5_ns_augs_800/model_epoch_5_auc_0.86_loss_0.5.pth')
 
 scaler = None
 if torch.cuda.device_count() > 1:
@@ -74,7 +91,7 @@ criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to
 optimizer = Adas(model.parameters())
 model = model.to(device)
 
-for epoch in range(40):
+for epoch in range(5, 40):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
@@ -91,7 +108,9 @@ for epoch in range(40):
            val_duration, total_val_loss, val_avg_auc, str(datetime.datetime.now())))
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
-    torch.save(model.state_dict(), os.path.join(checkpoints_dir_name, 'model_epoch_{}_auc_{}_loss_{}.pth'.format(
-        epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2))))
+    torch.save(model.state_dict(),
+               os.path.join(checkpoints_dir_name, 'model_epoch_{}_val_auc_{}_loss_{}_train_auc_{}_loss_{}.pth'.format(
+                   epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2),
+                   round(train_avg_auc, 2), round(total_train_loss, 2))))
 
 writer.close()

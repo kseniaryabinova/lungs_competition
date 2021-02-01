@@ -17,6 +17,7 @@ def eval_model(model, val_loader: DataLoader,
     start_time = time.time()
 
     model.eval()
+    model = model.float()
 
     with torch.no_grad():
         for batch in val_loader:
@@ -24,11 +25,11 @@ def eval_model(model, val_loader: DataLoader,
 
             if scaler is not None:
                 with autocast():
-                    outputs = model(inputs.to(device))
-                    batch_loss = criterion(outputs, labels.to(device))
+                    outputs = model(inputs.to(device, non_blocking=True))
+                    batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
             else:
-                outputs = model(inputs.to(device))
-                batch_loss = criterion(outputs, labels.to(device))
+                outputs = model(inputs.to(device, non_blocking=True))
+                batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
 
             predictions.extend(sigmoid(outputs).cpu().detach().numpy())
             ground_truth.extend(labels.numpy())
@@ -37,15 +38,21 @@ def eval_model(model, val_loader: DataLoader,
             iter_counter += 1
 
     total_loss /= iter_counter
-    avg_auc, aucs = get_metric(np.array(predictions), np.array(ground_truth))
+    avg_auc, aucs = get_metric(np.array(predictions, dtype=np.float), np.array(ground_truth, dtype=np.float))
 
     return total_loss, avg_auc, aucs, time.time() - start_time
 
 
 def get_metric(predictions, ground_truth):
-    predictions[predictions == -np.inf] = 0.
-    predictions[predictions == np.inf] = 1.
-    predictions[predictions == np.nan] = 0.
+    print(np.isinf(predictions).any(), np.isnan(predictions).any(),
+          np.isinf(ground_truth).any(), np.isnan(ground_truth).any())
+
+    predictions = np.nan_to_num(predictions, nan=0.0, posinf=1.0, neginf=0.0)
+    ground_truth = np.nan_to_num(ground_truth, nan=0.0, posinf=1.0, neginf=0.0)
+
+    print(np.isinf(predictions).any(), np.isnan(predictions).any(),
+          np.isinf(ground_truth).any(), np.isnan(ground_truth).any())
+
     aucs = roc_auc_score(ground_truth, predictions, average=None)
     return np.mean(aucs), aucs
 
@@ -66,14 +73,14 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
 
         if scaler is not None:
             with autocast():
-                outputs = model(inputs.to(device))
-                loss = criterion(outputs, labels.to(device))
+                outputs = model(inputs.to(device, non_blocking=True))
+                loss = criterion(outputs, labels.to(device, non_blocking=True))
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
         else:
-            outputs = model(inputs.to(device))
-            loss = criterion(outputs, labels.to(device))
+            outputs = model(inputs.to(device, non_blocking=True))
+            loss = criterion(outputs, labels.to(device, non_blocking=True))
             loss.backward()
             optimizer.step()
 
@@ -83,6 +90,8 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
         total_loss += loss.item()
 
     total_loss /= iter_counter
-    avg_auc, aucs = get_metric(np.array(predictions), np.array(ground_truth))
+    avg_auc, aucs = get_metric(np.array(predictions, dtype=np.float), np.array(ground_truth, dtype=np.float))
 
     return total_loss, avg_auc, aucs, time.time() - start_time
+
+
