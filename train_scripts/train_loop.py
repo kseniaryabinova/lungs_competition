@@ -1,9 +1,10 @@
 # from train_func_for_ddp import train_function
 
-import datetime
 import os
 import shutil
 import time
+from pytz import timezone
+from datetime import datetime
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':64:8'
@@ -14,6 +15,7 @@ import numpy as np
 import torch
 
 from torch.cuda.amp import GradScaler
+from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -28,7 +30,6 @@ from train_functions import one_epoch_train, eval_model
 
 torch.manual_seed(25)
 np.random.seed(25)
-
 
 ### ---------------------- DistributedDataParallel ----------------------
 # gpus = 4
@@ -51,27 +52,39 @@ train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
     alb.CLAHE(p=0.5),
     alb.GridDistortion(p=0.5),
+    alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=10, p=0.5),
+    alb.HueSaturationValue(
+        hue_shift_limit=0.2,
+        sat_shift_limit=0.2,
+        val_shift_limit=0.2,
+        p=0.5
+    ),
+    alb.RandomBrightnessContrast(
+        brightness_limit=(-0.1, 0.1),
+        contrast_limit=(-0.1, 0.1),
+        p=0.5
+    ),
+    alb.CoarseDropout(p=0.5),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=800)
-train_loader = DataLoader(train_set, batch_size=20, shuffle=True, num_workers=48, pin_memory=True)
+train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=640)
+train_loader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=48, pin_memory=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=800)
-val_loader = DataLoader(val_set, batch_size=20, num_workers=48, pin_memory=True)
+val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=640)
+val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b5_ns_augs_800'
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_augs'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
 model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True,
-                     model_name='tf_efficientnet_b5_ns',
-                     checkpoint_path='tf_efficientnet_b5_ns_augs_800/model_epoch_5_auc_0.86_loss_0.5.pth')
+                     model_name='tf_efficientnet_b7_ns')
 
 scaler = None
 if torch.cuda.device_count() > 1:
@@ -88,10 +101,11 @@ class_names = [
     'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present'
 ]
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
-optimizer = Adas(model.parameters())
+# optimizer = Adas(model.parameters())
+optimizer = Adam(model.parameters(), lr=0.001)
 model = model.to(device)
 
-for epoch in range(5, 40):
+for epoch in range(5, 80):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
@@ -105,7 +119,7 @@ for epoch in range(5, 40):
     print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f, avg auc: %.3f]\t\t'
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]\tCurrent time %s' %
           (epoch + 1, train_duration, total_train_loss, train_avg_auc,
-           val_duration, total_val_loss, val_avg_auc, str(datetime.datetime.now())))
+           val_duration, total_val_loss, val_avg_auc, str(datetime.now(timezone('Europe/Moscow')))))
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
     torch.save(model.state_dict(),
