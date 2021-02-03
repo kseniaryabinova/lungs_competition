@@ -50,13 +50,14 @@ writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
+    alb.HorizontalFlip(p=0.5),
     alb.CLAHE(p=0.5),
     alb.GridDistortion(p=0.5),
     alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=10, p=0.5),
     alb.HueSaturationValue(
-        hue_shift_limit=0.2,
-        sat_shift_limit=0.2,
-        val_shift_limit=0.2,
+        hue_shift_limit=15,
+        sat_shift_limit=15,
+        val_shift_limit=15,
         p=0.5
     ),
     alb.RandomBrightnessContrast(
@@ -105,7 +106,7 @@ criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to
 optimizer = Adam(model.parameters(), lr=0.001)
 model = model.to(device)
 
-for epoch in range(5, 80):
+for epoch in range(80):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
@@ -124,7 +125,7 @@ for epoch in range(5, 80):
 
     torch.save(model.state_dict(),
                os.path.join(checkpoints_dir_name, 'model_epoch_{}_val_auc_{}_loss_{}_train_auc_{}_loss_{}.pth'.format(
-                   epoch + 1, round(val_avg_auc, 2), round(total_val_loss, 2),
-                   round(train_avg_auc, 2), round(total_train_loss, 2))))
+                   epoch + 1, round(val_avg_auc, 3), round(total_val_loss, 3),
+                   round(train_avg_auc, 3), round(total_train_loss, 3))))
 
 writer.close()

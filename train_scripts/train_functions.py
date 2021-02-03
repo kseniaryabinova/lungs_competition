@@ -44,15 +44,8 @@ def eval_model(model, val_loader: DataLoader,
 
 
 def get_metric(predictions, ground_truth):
-    print(np.isinf(predictions).any(), np.isnan(predictions).any(),
-          np.isinf(ground_truth).any(), np.isnan(ground_truth).any())
-
     predictions = np.nan_to_num(predictions, nan=0.0, posinf=1.0, neginf=0.0)
     ground_truth = np.nan_to_num(ground_truth, nan=0.0, posinf=1.0, neginf=0.0)
-
-    print(np.isinf(predictions).any(), np.isnan(predictions).any(),
-          np.isinf(ground_truth).any(), np.isnan(ground_truth).any())
-
     aucs = roc_auc_score(ground_truth, predictions, average=None)
     return np.mean(aucs), aucs
 
@@ -76,12 +69,14 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
                 outputs = model(inputs.to(device, non_blocking=True))
                 loss = criterion(outputs, labels.to(device, non_blocking=True))
             scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
             scaler.step(optimizer)
             scaler.update()
         else:
             outputs = model(inputs.to(device, non_blocking=True))
             loss = criterion(outputs, labels.to(device, non_blocking=True))
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
             optimizer.step()
 
         predictions.extend(sigmoid(outputs).cpu().detach().numpy())
