@@ -69,7 +69,10 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
                 outputs = model(inputs.to(device, non_blocking=True))
                 loss = criterion(outputs, labels.to(device, non_blocking=True))
             scaler.scale(loss).backward()
+
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
+
             scaler.step(optimizer)
             scaler.update()
         else:

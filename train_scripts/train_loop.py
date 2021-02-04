@@ -16,6 +16,7 @@ import torch
 
 from torch.cuda.amp import GradScaler
 from torch.optim import Adam
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -84,8 +85,9 @@ checkpoints_dir_name = 'tf_efficientnet_b7_ns_augs'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
-model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True,
-                     model_name='tf_efficientnet_b7_ns')
+model = EfficientNet(
+    11, pretrained_backbone=True, mixed_precision=True,
+    model_name='tf_efficientnet_b7_ns')
 
 scaler = None
 if torch.cuda.device_count() > 1:
@@ -103,10 +105,11 @@ class_names = [
 ]
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-optimizer = Adam(model.parameters(), lr=0.001)
+optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-6)
+scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=30, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
-for epoch in range(80):
+for epoch in range(30):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
