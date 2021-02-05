@@ -8,6 +8,7 @@ from typing import Iterator
 import cv2
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from albumentations.pytorch import ToTensorV2, ToTensor
 import albumentations as alb
@@ -157,22 +158,62 @@ class ImageDataset(Dataset):
 
 
 if __name__ == '__main__':
-    train_df = pd.read_csv('../ranzcr/train.csv')
+    train_df = pd.read_csv('../dataset/train.csv')
 
     image_transforms = alb.Compose([
-        # alb.CLAHE(),
-        # alb.RandomBrightnessContrast(p=1.0),
-        # alb.ElasticTransform(sigma=8, alpha_affine=8, p=1.0),
-        # alb.GridDistortion(p=1),
-        ToTensor(),
+        alb.HorizontalFlip(p=0.5),
+        alb.CLAHE(p=0.5),
+        alb.OneOf([
+            alb.GridDistortion(
+                num_steps=8,
+                distort_limit=0.5,
+                p=1.0
+            ),
+            alb.OpticalDistortion(
+                distort_limit=0.5,
+                shift_limit=0.5,
+                p=1.0,
+            ),
+            alb.ElasticTransform(alpha=3, p=1.0)],
+            p=0.5
+        ),
+        alb.RandomResizedCrop(
+            height=int(0.8192*640),
+            width=640,
+            scale=(0.5, 1.5),
+            p=0.5
+        ),
+        alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
+        alb.HueSaturationValue(
+            hue_shift_limit=20,
+            sat_shift_limit=20,
+            val_shift_limit=20,
+            p=0.5
+        ),
+        alb.RandomBrightnessContrast(
+            brightness_limit=(-0.15, 0.15),
+            contrast_limit=(-0.15, 0.15),
+            p=0.5
+        ),
+        alb.CoarseDropout(
+            max_holes=12,
+            min_holes=6,
+            max_height=int(0.8192*640 / 6),
+            max_width=int(640 / 6),
+            min_height=int(0.8192*640 / 20),
+            min_width=int(640 / 20),
+            p=0.5
+        ),
+        alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ])
 
-    dataset = ImageDataset(train_df, image_transforms, '../dataset/train')
+    dataset = ImageDataset(train_df, image_transforms, '../dataset/train', width_size=640)
 
     for i in range(50, 60):
         image, labels = dataset[i]
         cv2.imshow('1', image)
-        cv2.waitKey(0)
+        if cv2.waitKey(0) == 27:
+            break
 
     # dataset = ImageIterableDataset(train_df, 6400, image_transforms, '../ranzcr/train', max_workers=10)
     # datasets = ImageIterableDataset.split_datasets(train_df, 6400, 24, image_transforms, '../ranzcr/train')

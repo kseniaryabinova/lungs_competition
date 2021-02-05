@@ -48,29 +48,58 @@ np.random.seed(25)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
+width_size = 640
+
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
     alb.HorizontalFlip(p=0.5),
     alb.CLAHE(p=0.5),
-    alb.GridDistortion(p=0.5),
-    alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=10, p=0.5),
+    alb.OneOf([
+        alb.GridDistortion(
+            num_steps=8,
+            distort_limit=0.5,
+            p=1.0
+        ),
+        alb.OpticalDistortion(
+            distort_limit=0.5,
+            shift_limit=0.5,
+            p=1.0,
+        ),
+        alb.ElasticTransform(alpha=3, p=1.0)],
+        p=0.5
+    ),
+    alb.RandomResizedCrop(
+        height=int(0.8192 * width_size),
+        width=width_size,
+        scale=(0.5, 1.5),
+        p=0.5
+    ),
+    alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
     alb.HueSaturationValue(
-        hue_shift_limit=15,
-        sat_shift_limit=15,
-        val_shift_limit=15,
+        hue_shift_limit=20,
+        sat_shift_limit=20,
+        val_shift_limit=20,
         p=0.5
     ),
     alb.RandomBrightnessContrast(
-        brightness_limit=(-0.1, 0.1),
-        contrast_limit=(-0.1, 0.1),
+        brightness_limit=(-0.15, 0.15),
+        contrast_limit=(-0.15, 0.15),
         p=0.5
     ),
-    alb.CoarseDropout(p=0.5),
+    alb.CoarseDropout(
+        max_holes=12,
+        min_holes=6,
+        max_height=int(0.8192 * width_size / 6),
+        max_width=int(width_size / 6),
+        min_height=int(0.8192 * width_size / 20),
+        min_width=int(width_size / 20),
+        p=0.5
+    ),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=640)
+train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=width_size)
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=48, pin_memory=True)
 
 val_df = df[df['split'] == 0]
@@ -78,10 +107,10 @@ val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=640)
+val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_augs'
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_more_augs'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
