@@ -21,21 +21,18 @@ import albumentations as alb
 
 from adas_optimizer import Adas
 from dataloader import ImageDataset
-from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
 from train_functions import one_epoch_train, eval_model
 
 
-def train_function(gpu, world_size, node_rank, gpus):
+def train_function(gpu,  world_size, node_rank, gpus):
     torch.manual_seed(25)
     np.random.seed(25)
-    # os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
     rank = node_rank * gpus + gpu
     dist.init_process_group(
         backend='nccl',
-        # init_method='file:///tmp/some_file',
-        init_method='tcp://localhost:8889',
+        init_method='env://',
         world_size=world_size,
         rank=rank
     )
@@ -65,7 +62,7 @@ def train_function(gpu, world_size, node_rank, gpus):
         ToTensorV2()
     ])
     val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
-    val_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank)
+    val_sampler = DistributedSampler(val_set, num_replicas=world_size, rank=rank)
     val_loader = DataLoader(val_set, batch_size=5, num_workers=12, pin_memory=True, sampler=val_sampler)
 
     checkpoints_dir_name = 'tf_efficientnet_b5'
