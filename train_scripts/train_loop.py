@@ -1,5 +1,3 @@
-# from train_func_for_ddp import train_function
-
 import os
 import shutil
 import time
@@ -32,28 +30,16 @@ from train_functions import one_epoch_train, eval_model
 torch.manual_seed(25)
 np.random.seed(25)
 
-### ---------------------- DistributedDataParallel ----------------------
-# gpus = 4
-# nodes = 1
-# node_rank = 0
-# world_size = gpus * nodes                #
-# os.environ['MASTER_ADDR'] = '192.168.6.222'              #
-# os.environ['MASTER_PORT'] = '8888'                      #
-#
-# if __name__ == '__main__':
-#     torch.multiprocessing.spawn(fn=train_function, nprocs=gpus, args=(world_size, node_rank, gpus), join=True)
-### ---------------------- DistributedDataParallel ----------------------
-
 
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 640
+width_size = 600
 
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
-    alb.HorizontalFlip(p=0.5),
+    alb.HorizontalFlip(p=0.7),
     alb.CLAHE(p=0.5),
     alb.OneOf([
         alb.GridDistortion(
@@ -67,25 +53,25 @@ train_image_transforms = alb.Compose([
             p=1.0,
         ),
         alb.ElasticTransform(alpha=3, p=1.0)],
-        p=0.5
+        p=0.7
     ),
     alb.RandomResizedCrop(
         height=int(0.8192 * width_size),
         width=width_size,
         scale=(0.5, 1.5),
-        p=0.5
+        p=0.7
     ),
     alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
     alb.HueSaturationValue(
         hue_shift_limit=20,
         sat_shift_limit=20,
         val_shift_limit=20,
-        p=0.5
+        p=0.7
     ),
     alb.RandomBrightnessContrast(
         brightness_limit=(-0.15, 0.15),
         contrast_limit=(-0.15, 0.15),
-        p=0.5
+        p=0.7
     ),
     alb.CoarseDropout(
         max_holes=12,
@@ -94,7 +80,7 @@ train_image_transforms = alb.Compose([
         max_width=int(width_size / 6),
         min_height=int(0.8192 * width_size / 20),
         min_width=int(width_size / 20),
-        p=0.5
+        p=0.7
     ),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
@@ -110,7 +96,7 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_more_augs'
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_more_augs_wd4'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
@@ -134,7 +120,7 @@ class_names = [
 ]
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-6)
+optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=30, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
