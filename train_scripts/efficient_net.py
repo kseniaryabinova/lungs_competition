@@ -15,7 +15,10 @@ class EfficientNet(nn.Module):
         self.model.global_pool = nn.Identity()
         self.model.classifier = nn.Identity()
         self.pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(n_features, n_classes)
+        self.classifier = nn.Sequential(
+            nn.BatchNorm1d(n_features, momentum=0.99, eps=1e-3, affine=True),
+            nn.Linear(n_features, n_classes)
+        )
 
         if checkpoint_path is not None:
             state_dict = torch.load(checkpoint_path)
@@ -35,6 +38,7 @@ class EfficientNet(nn.Module):
                 features = self.model(x)
                 pooled_features = self.pooling(features).view(bs, -1)
                 x = self.classifier(pooled_features)
+                pass
         else:
             bs = x.size(0)
             features = self.model(x)
@@ -44,7 +48,7 @@ class EfficientNet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = EfficientNet(11, pretrained_backbone=False, mixed_precision=False, model_name='tf_efficientnet_b5_ns')
+    model = EfficientNet(11, pretrained_backbone=False, mixed_precision=False, model_name='tf_efficientnet_b7_ns')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     print(summary(model, (3, 300, 300)))
