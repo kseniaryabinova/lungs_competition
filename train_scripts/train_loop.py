@@ -4,6 +4,8 @@ import time
 from pytz import timezone
 from datetime import datetime
 
+from vit import ViT
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':64:8'
 
@@ -33,11 +35,12 @@ np.random.seed(25)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 512
+width_size = 384
 
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
+    alb.PadIfNeeded(min_height=width_size, min_width=width_size),
     alb.HorizontalFlip(p=0.5),
     alb.CLAHE(p=0.5),
     alb.OneOf([
@@ -55,7 +58,8 @@ train_image_transforms = alb.Compose([
         p=0.5
     ),
     alb.RandomResizedCrop(
-        height=int(0.8192 * width_size),
+        # height=int(0.8192 * width_size),
+        height=width_size,
         width=width_size,
         scale=(0.5, 1.5),
         p=0.5
@@ -88,17 +92,20 @@ train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', wi
 train_loader = DataLoader(train_set, batch_size=24, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
 val_df = df[df['split'] == 0]
-val_image_transforms = alb.Compose([alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), ToTensorV2()])
+val_image_transforms = alb.Compose([
+    alb.PadIfNeeded(min_height=width_size, min_width=width_size),
+    alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2()
+])
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=24, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_512'
+checkpoints_dir_name = 'vit_base_patch16_384'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
-model = EfficientNet(
-    11, pretrained_backbone=True, mixed_precision=True,
-    model_name='tf_efficientnet_b7_ns')
+# model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns')
+model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
 
 scaler = None
 if torch.cuda.device_count() > 1:
@@ -114,11 +121,11 @@ class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=5e-5)
-scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=30, T_mult=1, eta_min=1e-6, last_epoch=-1)
+optimizer = Adam(model.parameters(), lr=1e-4)
+scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
-for epoch in range(30):
+for epoch in range(40):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
@@ -136,8 +143,8 @@ for epoch in range(30):
     print('{}\n{}'.format(str(train_auc), str(val_auc)))
 
     torch.save(model.state_dict(),
-               os.path.join(checkpoints_dir_name, 'model_epoch_{}_val_auc_{}_loss_{}_train_auc_{}_loss_{}.pth'.format(
-                   epoch + 1, round(val_avg_auc, 3), round(total_val_loss, 3),
+               os.path.join(checkpoints_dir_name, '{}_epoch_{}_val_auc_{}_loss_{}_train_auc_{}_loss_{}.pth'.format(
+                   checkpoints_dir_name, epoch + 1, round(val_avg_auc, 3), round(total_val_loss, 3),
                    round(train_avg_auc, 3), round(total_train_loss, 3))))
 
 writer.close()

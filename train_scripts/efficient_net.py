@@ -50,5 +50,11 @@ class EfficientNet(nn.Module):
 if __name__ == '__main__':
     model = EfficientNet(11, pretrained_backbone=False, mixed_precision=False, model_name='tf_efficientnet_b7_ns')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in model.classifier.parameters():
+        param.requires_grad = True
+
     model.to(device)
     print(summary(model, (3, 300, 300)))
