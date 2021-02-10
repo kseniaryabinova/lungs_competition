@@ -4,6 +4,7 @@ import time
 from pytz import timezone
 from datetime import datetime
 
+from efficient_net_sa import EfficientNetSA
 from vit import ViT
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
@@ -35,12 +36,12 @@ np.random.seed(25)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 384
+width_size = 512
 
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
-    alb.PadIfNeeded(min_height=width_size, min_width=width_size),
+    # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
     alb.HorizontalFlip(p=0.5),
     alb.CLAHE(p=0.5),
     alb.OneOf([
@@ -58,8 +59,8 @@ train_image_transforms = alb.Compose([
         p=0.5
     ),
     alb.RandomResizedCrop(
-        # height=int(0.8192 * width_size),
-        height=width_size,
+        height=int(0.8192 * width_size),
+        # height=width_size,
         width=width_size,
         scale=(0.5, 1.5),
         p=0.5
@@ -89,7 +90,7 @@ train_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=24, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
+train_loader = DataLoader(train_set, batch_size=32, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
@@ -98,14 +99,15 @@ val_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
-val_loader = DataLoader(val_set, batch_size=24, num_workers=48, pin_memory=True, drop_last=True)
+val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'vit_base_patch16_384'
+checkpoints_dir_name = 'tf_efficientnet_sa_b5_ns_512'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
 # model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns')
-model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
+# model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
+model = EfficientNetSA(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
 
 scaler = None
 if torch.cuda.device_count() > 1:

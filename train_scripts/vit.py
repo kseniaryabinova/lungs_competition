@@ -35,6 +35,10 @@ class ViT(nn.Module):
 
 if __name__ == '__main__':
     model = ViT(11, pretrained_backbone=False, mixed_precision=False, model_name='vit_base_patch16_384')
+
+    for param in model.parameters():
+        print(param.requires_grad)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     print(summary(model, (3, 384, 384)))
