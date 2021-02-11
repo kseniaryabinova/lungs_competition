@@ -1,3 +1,4 @@
+import itertools
 import os
 import shutil
 import time
@@ -28,7 +29,7 @@ from adas_optimizer import Adas
 from dataloader import ImageDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
-from train_functions import one_epoch_train, eval_model
+from train_functions import one_epoch_train, eval_model, group_weight
 
 torch.manual_seed(25)
 np.random.seed(25)
@@ -90,7 +91,7 @@ train_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=32, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
+train_loader = DataLoader(train_set, batch_size=8, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
@@ -99,7 +100,7 @@ val_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
-val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True, drop_last=True)
+val_loader = DataLoader(val_set, batch_size=8, num_workers=48, pin_memory=True, drop_last=True)
 
 checkpoints_dir_name = 'tf_efficientnet_sa_b5_ns_512'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
@@ -123,13 +124,15 @@ class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-optimizer = Adam(model.parameters(), lr=1e-4)
+# optimizer = Adam(itertools.chain(*group_weight(model, weight_decay=1e-5)), lr=1e-4, weight_decay=0)
+optimizer = Adam(group_weight(model, weight_decay=1e-5), lr=1e-4, weight_decay=0)
+# optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
 for epoch in range(40):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
-        model, train_loader, optimizer, criterion, device, scaler)
+        model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=1, clip_grads=False)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
