@@ -50,7 +50,24 @@ def get_metric(predictions, ground_truth):
     return np.mean(aucs), aucs
 
 
-def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
+def group_weight(module, weight_decay):
+    decay = []
+    no_decay = []
+    for name, param in module.named_parameters():
+        if not param.requires_grad:
+            continue
+        if len(param.shape) == 1 or name in ['bn', 'bias']:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+
+    print(len(no_decay), len(decay))
+    return [
+        {'params': no_decay, 'weight_decay': 0.},
+        {'params': decay, 'weight_decay': weight_decay}]
+
+
+def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=4, clip_grads=True):
     total_loss = 0
     iter_counter = 0
     predictions = []
@@ -59,35 +76,43 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler):
     start_time = time.time()
 
     model.train()
+    optimizer.zero_grad()
 
-    for batch in train_loader:
+    for i, batch in enumerate(train_loader):
         inputs, labels = batch
-        optimizer.zero_grad()
 
         if scaler is not None:
             with autocast():
-                outputs = model(inputs.to(device, non_blocking=True))
-                loss = criterion(outputs, labels.to(device, non_blocking=True))
+                outputs = model(inputs.to(device))
+                loss = criterion(outputs, labels.to(device))
+                loss = loss / iters_to_accumulate
             scaler.scale(loss).backward()
 
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
-
-            scaler.step(optimizer)
-            scaler.update()
+            if (i + 1) % iters_to_accumulate == 0:
+                if clip_grads:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
         else:
-            outputs = model(inputs.to(device, non_blocking=True))
-            loss = criterion(outputs, labels.to(device, non_blocking=True))
+            outputs = model(inputs.to(device))
+            loss = criterion(outputs, labels.to(device))
+            loss = loss / iters_to_accumulate
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
-            optimizer.step()
+
+            if (i + 1) % iters_to_accumulate == 0:
+                if clip_grads:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 1000)
+                optimizer.step()
+                optimizer.zero_grad()
 
         predictions.extend(sigmoid(outputs).cpu().detach().numpy())
         ground_truth.extend(labels.numpy())
         iter_counter += 1
         total_loss += loss.item()
 
-    total_loss /= iter_counter
+    total_loss /= iter_counter / iters_to_accumulate
     avg_auc, aucs = get_metric(np.array(predictions, dtype=np.float), np.array(ground_truth, dtype=np.float))
 
     return total_loss, avg_auc, aucs, time.time() - start_time

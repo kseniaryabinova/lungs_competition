@@ -28,7 +28,7 @@ from adas_optimizer import Adas
 from dataloader import ImageDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
-from train_functions import one_epoch_train, eval_model
+from train_functions import one_epoch_train, eval_model, group_weight
 
 torch.manual_seed(25)
 np.random.seed(25)
@@ -123,7 +123,8 @@ class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-optimizer = Adam(model.parameters(), lr=1e-4)
+# optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
+optimizer = Adam(group_weight(model, weight_decay=1e-5), lr=1e-4, weight_decay=0)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
