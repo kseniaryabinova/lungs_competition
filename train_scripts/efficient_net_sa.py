@@ -123,11 +123,11 @@ class EfficientNetSA(nn.Module):
         self.pooling = nn.AdaptiveAvgPool2d(1)
 
         self.local_fe = CBAM(n_features)
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.2)
         self.classifier = nn.Sequential(nn.Linear(n_features + n_features, n_features),
                                         nn.BatchNorm1d(n_features),
-                                        nn.Dropout(0.1),
                                         nn.ReLU(),
+                                        nn.Dropout(0.2),
                                         nn.Linear(n_features, n_classes))
 
         if checkpoint_path is not None:
@@ -184,4 +184,4 @@ if __name__ == '__main__':
     #     param.requires_grad = True
 
     model.to(device)
-    print(summary(model, (3, 512, 512)))
+    print(summary(model, (3, 600, 600)))

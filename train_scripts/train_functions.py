@@ -67,7 +67,7 @@ def group_weight(module, weight_decay):
         {'params': decay, 'weight_decay': weight_decay}]
 
 
-def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=4, clip_grads=True):
+def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=2, clip_grads=False):
     total_loss = 0
     iter_counter = 0
     predictions = []

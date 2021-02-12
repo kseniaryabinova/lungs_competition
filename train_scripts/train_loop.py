@@ -36,7 +36,7 @@ np.random.seed(25)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 512
+width_size = 600
 
 df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
@@ -101,7 +101,7 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_sa_b5_ns_512'
+checkpoints_dir_name = 'tf_efficientnet_sa_b5_ns_600'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
@@ -124,7 +124,7 @@ class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
 # optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
-optimizer = Adam(group_weight(model, weight_decay=1e-5), lr=1e-4, weight_decay=0)
+optimizer = Adam(group_weight(model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
