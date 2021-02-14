@@ -28,68 +28,69 @@ from adas_optimizer import Adas
 from dataloader import ImageDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
-from train_functions import one_epoch_train, eval_model, group_weight
+from train_functions import one_epoch_train, eval_model, group_weight, BCEwithLabelSmoothing
 
 torch.manual_seed(25)
 np.random.seed(25)
 
+os.makedirs('tensorboard_runs', exist_ok=True)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 600
+width_size = 128
 
-df = pd.read_csv('train_with_split.csv')
+df = pd.read_csv('../dataset/train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
     # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
-    alb.HorizontalFlip(p=0.5),
-    alb.CLAHE(p=0.5),
-    alb.OneOf([
-        alb.GridDistortion(
-            num_steps=8,
-            distort_limit=0.5,
-            p=1.0
-        ),
-        alb.OpticalDistortion(
-            distort_limit=0.5,
-            shift_limit=0.5,
-            p=1.0,
-        ),
-        alb.ElasticTransform(alpha=3, p=1.0)],
-        p=0.5
-    ),
-    alb.RandomResizedCrop(
-        height=int(0.8192 * width_size),
-        # height=width_size,
-        width=width_size,
-        scale=(0.5, 1.5),
-        p=0.5
-    ),
-    alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
-    alb.HueSaturationValue(
-        hue_shift_limit=20,
-        sat_shift_limit=20,
-        val_shift_limit=20,
-        p=0.5
-    ),
-    alb.RandomBrightnessContrast(
-        brightness_limit=(-0.15, 0.15),
-        contrast_limit=(-0.15, 0.15),
-        p=0.5
-    ),
-    alb.CoarseDropout(
-        max_holes=12,
-        min_holes=6,
-        max_height=int(0.8192 * width_size / 6),
-        max_width=int(width_size / 6),
-        min_height=int(0.8192 * width_size / 20),
-        min_width=int(width_size / 20),
-        p=0.5
-    ),
+    # alb.HorizontalFlip(p=0.5),
+    # alb.CLAHE(p=0.5),
+    # alb.OneOf([
+    #     alb.GridDistortion(
+    #         num_steps=8,
+    #         distort_limit=0.5,
+    #         p=1.0
+    #     ),
+    #     alb.OpticalDistortion(
+    #         distort_limit=0.5,
+    #         shift_limit=0.5,
+    #         p=1.0,
+    #     ),
+    #     alb.ElasticTransform(alpha=3, p=1.0)],
+    #     p=0.5
+    # ),
+    # alb.RandomResizedCrop(
+    #     height=int(0.8192 * width_size),
+    #     # height=width_size,
+    #     width=width_size,
+    #     scale=(0.5, 1.5),
+    #     p=0.5
+    # ),
+    # alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
+    # alb.HueSaturationValue(
+    #     hue_shift_limit=20,
+    #     sat_shift_limit=20,
+    #     val_shift_limit=20,
+    #     p=0.5
+    # ),
+    # alb.RandomBrightnessContrast(
+    #     brightness_limit=(-0.15, 0.15),
+    #     contrast_limit=(-0.15, 0.15),
+    #     p=0.5
+    # ),
+    # alb.CoarseDropout(
+    #     max_holes=12,
+    #     min_holes=6,
+    #     max_height=int(0.8192 * width_size / 6),
+    #     max_width=int(width_size / 6),
+    #     min_height=int(0.8192 * width_size / 20),
+    #     min_width=int(width_size / 20),
+    #     p=0.5
+    # ),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=width_size)
+train_set = ImageDataset(train_df, train_image_transforms, '../dataset/train', width_size=width_size)
 train_loader = DataLoader(train_set, batch_size=32, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
 val_df = df[df['split'] == 0]
@@ -98,20 +99,19 @@ val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
+val_set = ImageDataset(val_df, val_image_transforms, '../dataset/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_sa_b5_ns_600'
+checkpoints_dir_name = 'resnet18'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
-# model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
+model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
 # model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns')
 # model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
-model = EfficientNetSA(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
+# model = EfficientNetSA(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
 
-scaler = None
+scaler = GradScaler()
 if torch.cuda.device_count() > 1:
-    scaler = GradScaler()
     model = torch.nn.DataParallel(model)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -121,16 +121,17 @@ class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.326086956521
 class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
+
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
+# criterion = BCEwithLabelSmoothing(pos_weights=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-# optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
 optimizer = Adam(group_weight(model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
 for epoch in range(40):
     total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
-        model, train_loader, optimizer, criterion, device, scaler)
+        model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=2, clip_grads=False)
     total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
