@@ -25,7 +25,7 @@ from albumentations.pytorch import ToTensorV2
 import albumentations as alb
 
 from adas_optimizer import Adas
-from dataloader import ImageDataset
+from dataloader import ImageDataset, ImagesWithAnnotationsDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
 from train_functions import one_epoch_train, eval_model, group_weight
@@ -37,13 +37,11 @@ os.makedirs('tensorboard_runs', exist_ok=True)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 736
+width_size = 600
 
-df = pd.read_csv('train_with_split.csv')
+df = pd.read_csv('../ranzcr/train.csv')
 annot_df = pd.read_csv('../ranzcr/train_annotations.csv')
-train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
-    # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
     alb.HorizontalFlip(p=0.5),
     alb.CLAHE(p=0.5),
     alb.OneOf([
@@ -67,17 +65,6 @@ train_image_transforms = alb.Compose([
         p=0.5
     ),
     alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
-    alb.HueSaturationValue(
-        hue_shift_limit=20,
-        sat_shift_limit=20,
-        val_shift_limit=20,
-        p=0.5
-    ),
-    alb.RandomBrightnessContrast(
-        brightness_limit=(-0.15, 0.15),
-        contrast_limit=(-0.15, 0.15),
-        p=0.5
-    ),
     alb.CoarseDropout(
         max_holes=12,
         min_holes=6,
@@ -90,19 +77,18 @@ train_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=12, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
+train_set = ImagesWithAnnotationsDataset(df, annot_df, train_image_transforms,
+                                         '../ranzcr/train', width_size=width_size)
+train_loader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
-val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
-    # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
-val_loader = DataLoader(val_set, batch_size=12, num_workers=48, pin_memory=True, drop_last=True)
+val_set = ImagesWithAnnotationsDataset(df, annot_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
+val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_{}'.format(width_size)
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_600_annot'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)

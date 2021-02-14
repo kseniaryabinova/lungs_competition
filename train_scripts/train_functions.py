@@ -101,7 +101,7 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
         if scaler is not None:
             with autocast():
                 outputs = model(inputs.to(device))
-                loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.2))
+                loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.1))
                 loss = loss / iters_to_accumulate
             scaler.scale(loss).backward()
 
@@ -114,7 +114,7 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
                 optimizer.zero_grad()
         else:
             outputs = model(inputs.to(device))
-            loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.2))
+            loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.1))
             loss = loss / iters_to_accumulate
             loss.backward()
 
