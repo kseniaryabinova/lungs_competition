@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, roc_curve
 from torch import nn, Tensor
 from torch.autograd.grad_mode import F
 from torch.cuda.amp import autocast
@@ -40,15 +40,23 @@ def eval_model(model, val_loader: DataLoader,
             iter_counter += 1
 
     total_loss /= iter_counter
-    avg_auc, aucs = get_metric(np.array(predictions, dtype=np.float), np.array(ground_truth, dtype=np.float))
+    predictions = np.array(predictions, dtype=np.float)
+    ground_truth = np.array(ground_truth, dtype=np.float)
+    avg_auc, aucs = get_metric(predictions, ground_truth)
 
-    return total_loss, avg_auc, aucs, time.time() - start_time
+    return total_loss, avg_auc, aucs, (predictions, ground_truth), time.time() - start_time
 
 
 def get_metric(predictions, ground_truth):
     predictions = np.nan_to_num(predictions, nan=0.0, posinf=1.0, neginf=0.0)
     ground_truth = np.nan_to_num(ground_truth, nan=0.0, posinf=1.0, neginf=0.0)
     aucs = roc_auc_score(ground_truth, predictions, average=None)
+
+    rocs_parameters = []
+    for i in range(predictions.shape[1]):
+        fpr, tpr, _ = roc_curve(ground_truth[:, i], predictions[:, i])
+        rocs_parameters.append((fpr, tpr))
+
     return np.mean(aucs), aucs
 
 
@@ -93,7 +101,7 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
         if scaler is not None:
             with autocast():
                 outputs = model(inputs.to(device))
-                loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.1))
+                loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.2))
                 loss = loss / iters_to_accumulate
             scaler.scale(loss).backward()
 
@@ -106,7 +114,7 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
                 optimizer.zero_grad()
         else:
             outputs = model(inputs.to(device))
-            loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.1))
+            loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.2))
             loss = loss / iters_to_accumulate
             loss.backward()
 
@@ -120,9 +128,10 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
         ground_truth.extend(labels.numpy())
         iter_counter += 1
         total_loss += loss.item()
-        print(loss.item())
 
     total_loss /= iter_counter / iters_to_accumulate
-    avg_auc, aucs = get_metric(np.array(predictions, dtype=np.float), np.array(ground_truth, dtype=np.float))
+    predictions = np.array(predictions, dtype=np.float)
+    ground_truth = np.array(ground_truth, dtype=np.float)
+    avg_auc, aucs = get_metric(predictions, ground_truth)
 
-    return total_loss, avg_auc, aucs, time.time() - start_time
+    return total_loss, avg_auc, aucs, (predictions, ground_truth), time.time() - start_time

@@ -39,7 +39,7 @@ writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time
 
 width_size = 128
 
-df = pd.read_csv('../dataset/train_with_split.csv')
+df = pd.read_csv('train_with_split.csv')
 train_df = df[df['split'] == 1]
 train_image_transforms = alb.Compose([
     # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
@@ -90,8 +90,8 @@ train_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImageDataset(train_df, train_image_transforms, '../dataset/train', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=32, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
+train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
+train_loader = DataLoader(train_set, batch_size=64, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
 val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
@@ -99,8 +99,8 @@ val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImageDataset(val_df, val_image_transforms, '../dataset/train', width_size=width_size)
-val_loader = DataLoader(val_set, batch_size=32, num_workers=48, pin_memory=True, drop_last=True)
+val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
+val_loader = DataLoader(val_set, batch_size=64, num_workers=48, pin_memory=True, drop_last=True)
 
 checkpoints_dir_name = 'resnet18'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
@@ -130,15 +130,21 @@ scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-
 model = model.to(device)
 
 for epoch in range(40):
-    total_train_loss, train_avg_auc, train_auc, train_duration = one_epoch_train(
+    total_train_loss, train_avg_auc, train_auc, train_data_pr, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=2, clip_grads=False)
-    total_val_loss, val_avg_auc, val_auc, val_duration = eval_model(
+    total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
 
     writer.add_scalars('avg/loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
     writer.add_scalars('avg/auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
     for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
         writer.add_scalars('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2}, epoch)
+    for i in range(len(class_names)):
+        writer.add_pr_curve('PR curve train/{}'.format(class_names[i]),
+                            train_data_pr[1][:, i], train_data_pr[0][:, i], global_step=epoch)
+        writer.add_pr_curve('PR curve validation/{}'.format(class_names[i]),
+                            val_data_pr[1][:, i], val_data_pr[0][:, i], global_step=epoch)
+    writer.flush()
 
     print('EPOCH %d:\tTRAIN [duration %.3f sec, loss: %.3f, avg auc: %.3f]\t\t'
           'VAL [duration %.3f sec, loss: %.3f, avg auc: %.3f]\tCurrent time %s' %
