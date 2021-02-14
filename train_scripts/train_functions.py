@@ -69,19 +69,6 @@ def group_weight(module, weight_decay):
         {'params': decay, 'weight_decay': weight_decay}]
 
 
-class BCEwithLabelSmoothing(nn.Module):
-    def __init__(self, pos_weights, smoothing=0.05):
-        super(BCEwithLabelSmoothing, self).__init__()
-        self.confidence = 1.0 - smoothing
-        self.smoothing = smoothing
-        self.pos_weights = pos_weights
-
-    def forward(self, input: Tensor, target: Tensor):
-        y_smo = target.float() * (1 - self.smoothing) + 0.5 * self.label_smoothing
-        return F.binary_cross_entropy_with_logits(input, y_smo.type_as(input),
-                                                  pos_weight=torch.tensor(self.pos_weights))
-
-
 def smooth_labels(targets: Tensor, smoothing=0.0):
     assert 0 <= smoothing < 1
     with torch.no_grad():

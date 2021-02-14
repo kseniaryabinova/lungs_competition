@@ -28,7 +28,7 @@ from adas_optimizer import Adas
 from dataloader import ImageDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
-from train_functions import one_epoch_train, eval_model, group_weight, BCEwithLabelSmoothing
+from train_functions import one_epoch_train, eval_model, group_weight
 
 torch.manual_seed(25)
 np.random.seed(25)
