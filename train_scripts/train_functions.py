@@ -27,10 +27,10 @@ def eval_model(model, val_loader: DataLoader,
 
             if scaler is not None:
                 with autocast():
-                    outputs = model(inputs.to(device, non_blocking=True))
+                    _, _, outputs = model(inputs.to(device, non_blocking=True))
                     batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
             else:
-                outputs = model(inputs.to(device, non_blocking=True))
+                _, _, outputs = model(inputs.to(device, non_blocking=True))
                 batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
 
             predictions.extend(sigmoid(outputs).cpu().detach().numpy())
@@ -138,14 +138,17 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
 
 
 class CustomLoss(nn.Module):
-    def __init__(self, weights=(1, 1), class_weights=()):
+    def __init__(self, weights=(1, 1), class_weights=None):
         super(CustomLoss, self).__init__()
         self.weights = weights
         self.class_weights = class_weights
 
     def forward(self, teacher_features, features, y_pred, labels):
         consistency_loss = nn.MSELoss()(teacher_features.view(-1), features.view(-1))
-        cls_loss = nn.BCEWithLogitsLoss(pos_weight=self.class_weights)(y_pred, labels)
+        if self.class_weights is not None:
+            cls_loss = nn.BCEWithLogitsLoss(pos_weight=self.class_weights)(y_pred, labels)
+        else:
+            cls_loss = nn.BCEWithLogitsLoss()(y_pred, labels)
         loss = self.weights[0] * consistency_loss + self.weights[1] * cls_loss
         return loss
 
@@ -171,7 +174,7 @@ def one_epoch_train_2_stage(teacher, student, train_loader, optimizer, criterion
         if scaler is not None:
             with autocast():
                 student_features, _, outputs = student(inputs.to(device))
-                loss = criterion(teacher_features, student_features, outputs, labels)
+                loss = criterion(teacher_features, student_features, outputs, labels.to(device))
                 loss = loss / iters_to_accumulate
             scaler.scale(loss).backward()
 
@@ -189,44 +192,6 @@ def one_epoch_train_2_stage(teacher, student, train_loader, optimizer, criterion
         total_loss += loss.item()
 
     total_loss /= iter_counter / iters_to_accumulate
-    predictions = np.array(predictions, dtype=np.float)
-    ground_truth = np.array(ground_truth, dtype=np.float)
-    avg_auc, aucs = get_metric(predictions, ground_truth)
-
-    return total_loss, avg_auc, aucs, (predictions, ground_truth), time.time() - start_time
-
-
-def eval_model_2_stage(model, val_loader: DataLoader,
-               device: torch.device, criterion, scaler):
-    predictions = []
-    ground_truth = []
-    total_loss = 0
-    sigmoid = torch.nn.Sigmoid()
-    iter_counter = 0
-    start_time = time.time()
-
-    model.eval()
-    model = model.float()
-
-    with torch.no_grad():
-        for batch in val_loader:
-            _, inputs, labels = batch
-
-            if scaler is not None:
-                with autocast():
-                    outputs = model(inputs.to(device, non_blocking=True))
-                    batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
-            else:
-                outputs = model(inputs.to(device, non_blocking=True))
-                batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
-
-            predictions.extend(sigmoid(outputs).cpu().detach().numpy())
-            ground_truth.extend(labels.numpy())
-
-            total_loss += batch_loss.item()
-            iter_counter += 1
-
-    total_loss /= iter_counter
     predictions = np.array(predictions, dtype=np.float)
     ground_truth = np.array(ground_truth, dtype=np.float)
     avg_auc, aucs = get_metric(predictions, ground_truth)

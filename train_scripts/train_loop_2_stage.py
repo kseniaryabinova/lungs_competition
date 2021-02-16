@@ -28,8 +28,7 @@ from adas_optimizer import Adas
 from dataloader import ImageDataset, ImagesWithAnnotationsDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet, EfficientNet3Stage
-from train_functions import one_epoch_train, eval_model, group_weight, CustomLoss, one_epoch_train_2_stage, \
-    eval_model_2_stage
+from train_functions import one_epoch_train, eval_model, group_weight, CustomLoss, one_epoch_train_2_stage
 
 torch.manual_seed(25)
 np.random.seed(25)
@@ -40,7 +39,7 @@ writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time
 
 width_size = 600
 
-df = pd.read_csv('../ranzcr/train.csv')
+df = pd.read_csv('train_with_split.csv')
 annot_df = pd.read_csv('../ranzcr/train_annotations.csv')
 train_image_transforms = alb.Compose([
     alb.HorizontalFlip(p=0.5),
@@ -82,11 +81,12 @@ train_set = ImagesWithAnnotationsDataset(df, annot_df, train_image_transforms,
                                          '../ranzcr/train', width_size=width_size)
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
+val_df = df[df['split'] == 0]
 val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-val_set = ImagesWithAnnotationsDataset(df, annot_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
+val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True, drop_last=True)
 
 checkpoints_dir_name = 'tf_efficientnet_b7_ns_600_2_stage'
@@ -103,15 +103,15 @@ if torch.cuda.device_count() > 1:
     student_model = torch.nn.DataParallel(student_model)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
-                 52.679245283018865, 9.152656621728786, 4.7851333032083145,
-                 8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
+# class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
+#                  52.679245283018865, 9.152656621728786, 4.7851333032083145,
+#                  8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
 class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 
-train_criterion = CustomLoss(weights=(0.5, 1.), class_weights=torch.tensor(class_weights).to(device))
-valid_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
+train_criterion = CustomLoss(weights=(0.5, 1.))
+valid_criterion = torch.nn.BCEWithLogitsLoss()
 
 optimizer = Adam(group_weight(student_model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
 scheduler = CosineAnnealingLR(optimizer, T_max=40, eta_min=1e-6, last_epoch=-1)
@@ -123,7 +123,7 @@ for epoch in range(40):
     total_train_loss, train_avg_auc, train_auc, train_data_pr, train_duration = one_epoch_train_2_stage(
         teacher_model, student_model, train_loader, optimizer, train_criterion,
         device, scaler, iters_to_accumulate=8, clip_grads=False)
-    total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model_2_stage(
+    total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model(
         student_model, val_loader, device, valid_criterion, scaler)
 
     writer.add_scalars('avg/loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)

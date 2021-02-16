@@ -73,6 +73,7 @@ class ImagesWithAnnotationsDataset(Dataset):
         new_h = int(image_h * ratio_coeff)
         new_w = int(image_w * ratio_coeff)
         image = cv2.resize(image, (new_w, new_h))
+        image_wo_annot = cv2.resize(image_wo_annot, (new_w, new_h))
 
         w_padding = (self.width_size - new_w) / 2
         h_padding = (self.height_size - new_h) / 2
