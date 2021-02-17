@@ -81,7 +81,11 @@ train_set = ImagesWithAnnotationsDataset(df, annot_df, train_image_transforms,
                                          '../ranzcr/train', width_size=width_size)
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
-val_df = df[df['split'] == 0]
+# val_df = df[df['split'] == 0]
+df['has_annot'] = 0
+df.loc[df['StudyInstanceUID'].isin(annot_df['StudyInstanceUID']), 'has_annot'] = 1
+val_df = df[df['has_annot'] == 0]
+# val_df = val_df[~val_df['PatientID'].isin(df[df['has_annot'] == 1]['PatientID'])]
 val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
@@ -103,23 +107,23 @@ if torch.cuda.device_count() > 1:
     student_model = torch.nn.DataParallel(student_model)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
-#                  52.679245283018865, 9.152656621728786, 4.7851333032083145,
-#                  8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
+class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
+                 52.679245283018865, 9.152656621728786, 4.7851333032083145,
+                 8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
 class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 
-train_criterion = CustomLoss(weights=(0.5, 1.))
-valid_criterion = torch.nn.BCEWithLogitsLoss()
+train_criterion = CustomLoss(weights=(0.5, 1.), class_weights=torch.tensor(class_weights).to(device))
+valid_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 
 optimizer = Adam(group_weight(student_model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
-scheduler = CosineAnnealingLR(optimizer, T_max=40, eta_min=1e-6, last_epoch=-1)
+scheduler = CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-6, last_epoch=-1)
 teacher_model = teacher_model.to(device)
 student_model = student_model.to(device)
 teacher_model.eval()
 
-for epoch in range(40):
+for epoch in range(30):
     total_train_loss, train_avg_auc, train_auc, train_data_pr, train_duration = one_epoch_train_2_stage(
         teacher_model, student_model, train_loader, optimizer, train_criterion,
         device, scaler, iters_to_accumulate=8, clip_grads=False)
