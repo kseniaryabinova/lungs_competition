@@ -27,11 +27,11 @@ def eval_model(model, val_loader: DataLoader,
 
             if scaler is not None:
                 with autocast():
-                    _, _, outputs = model(inputs.to(device, non_blocking=True))
-                    batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
+                    outputs = model(inputs.to(device))
+                    batch_loss = criterion(outputs, labels.to(device))
             else:
-                _, _, outputs = model(inputs.to(device, non_blocking=True))
-                batch_loss = criterion(outputs, labels.to(device, non_blocking=True))
+                outputs = model(inputs.to(device))
+                batch_loss = criterion(outputs, labels.to(device))
 
             predictions.extend(sigmoid(outputs).cpu().detach().numpy())
             ground_truth.extend(labels.numpy())
@@ -101,7 +101,7 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
         if scaler is not None:
             with autocast():
                 outputs = model(inputs.to(device))
-                loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.1))
+                loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.0))
                 loss = loss / iters_to_accumulate
             scaler.scale(loss).backward()
 
@@ -114,7 +114,7 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
                 optimizer.zero_grad()
         else:
             outputs = model(inputs.to(device))
-            loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.1))
+            loss = criterion(outputs, smooth_labels(labels.to(device), smoothing=0.0))
             loss = loss / iters_to_accumulate
             loss.backward()
 
@@ -192,6 +192,44 @@ def one_epoch_train_2_stage(teacher, student, train_loader, optimizer, criterion
         total_loss += loss.item()
 
     total_loss /= iter_counter / iters_to_accumulate
+    predictions = np.array(predictions, dtype=np.float)
+    ground_truth = np.array(ground_truth, dtype=np.float)
+    avg_auc, aucs = get_metric(predictions, ground_truth)
+
+    return total_loss, avg_auc, aucs, (predictions, ground_truth), time.time() - start_time
+
+
+def eval_model_2_stage(model, val_loader: DataLoader,
+               device: torch.device, criterion, scaler):
+    predictions = []
+    ground_truth = []
+    total_loss = 0
+    sigmoid = torch.nn.Sigmoid()
+    iter_counter = 0
+    start_time = time.time()
+
+    model.eval()
+    model = model.float()
+
+    with torch.no_grad():
+        for batch in val_loader:
+            inputs, labels = batch
+
+            if scaler is not None:
+                with autocast():
+                    _, _, outputs = model(inputs.to(device))
+                    batch_loss = criterion(outputs, labels.to(device))
+            else:
+                _, _, outputs = model(inputs.to(device))
+                batch_loss = criterion(outputs, labels.to(device))
+
+            predictions.extend(sigmoid(outputs).cpu().detach().numpy())
+            ground_truth.extend(labels.numpy())
+
+            total_loss += batch_loss.item()
+            iter_counter += 1
+
+    total_loss /= iter_counter
     predictions = np.array(predictions, dtype=np.float)
     ground_truth = np.array(ground_truth, dtype=np.float)
     avg_auc, aucs = get_metric(predictions, ground_truth)

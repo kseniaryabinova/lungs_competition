@@ -1,11 +1,9 @@
 import os
 import shutil
 import time
-from pytz import timezone
 from datetime import datetime
 
-from efficient_net_sa import EfficientNetSA
-from vit import ViT
+from pytz import timezone
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':64:8'
@@ -17,18 +15,17 @@ import torch
 
 from torch.cuda.amp import GradScaler
 from torch.optim import Adam
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from albumentations.pytorch import ToTensorV2
 import albumentations as alb
 
-from adas_optimizer import Adas
 from dataloader import ImageDataset, ImagesWithAnnotationsDataset
-from resnet import ResNet18, ResNet34
-from efficient_net import EfficientNet, EfficientNet3Stage
-from train_functions import one_epoch_train, eval_model, group_weight, CustomLoss, one_epoch_train_2_stage
+from efficient_net import EfficientNet3Stage
+from train_functions import group_weight, CustomLoss, one_epoch_train_2_stage, \
+    eval_model_2_stage
 
 torch.manual_seed(25)
 np.random.seed(25)
@@ -37,9 +34,10 @@ os.makedirs('tensorboard_runs', exist_ok=True)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 600
+width_size = 640
 
-df = pd.read_csv('train_with_split.csv')
+df = pd.read_csv('train_folds.csv')
+train_df = df[df['fold'] != 1]
 annot_df = pd.read_csv('../ranzcr/train_annotations.csv')
 train_image_transforms = alb.Compose([
     alb.HorizontalFlip(p=0.5),
@@ -77,15 +75,11 @@ train_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
-train_set = ImagesWithAnnotationsDataset(df, annot_df, train_image_transforms,
+train_set = ImagesWithAnnotationsDataset(train_df, annot_df, train_image_transforms,
                                          '../ranzcr/train', width_size=width_size)
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
 
-# val_df = df[df['split'] == 0]
-df['has_annot'] = 0
-df.loc[df['StudyInstanceUID'].isin(annot_df['StudyInstanceUID']), 'has_annot'] = 1
-val_df = df[df['has_annot'] == 0]
-# val_df = val_df[~val_df['PatientID'].isin(df[df['has_annot'] == 1]['PatientID'])]
+val_df = df[df['fold'] == 1]
 val_image_transforms = alb.Compose([
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
@@ -93,7 +87,7 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_600_2_stage'
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_640_2_stage'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 teacher_model = EfficientNet3Stage(11, pretrained_backbone=True, mixed_precision=True,
@@ -118,16 +112,16 @@ train_criterion = CustomLoss(weights=(0.5, 1.), class_weights=torch.tensor(class
 valid_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 
 optimizer = Adam(group_weight(student_model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
-scheduler = CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-6, last_epoch=-1)
+scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6, last_epoch=-1)
 teacher_model = teacher_model.to(device)
 student_model = student_model.to(device)
 teacher_model.eval()
 
-for epoch in range(30):
+for epoch in range(20):
     total_train_loss, train_avg_auc, train_auc, train_data_pr, train_duration = one_epoch_train_2_stage(
         teacher_model, student_model, train_loader, optimizer, train_criterion,
         device, scaler, iters_to_accumulate=8, clip_grads=False)
-    total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model(
+    total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model_2_stage(
         student_model, val_loader, device, valid_criterion, scaler)
 
     writer.add_scalars('avg/loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)

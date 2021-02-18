@@ -40,7 +40,10 @@ class ImagesWithAnnotationsDataset(Dataset):
     def __init__(self, df, df_annot, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
         self.df = df
         self.df_annot = df_annot
-        self.filenames = self.df['StudyInstanceUID'].unique().tolist()
+
+        # self.df['has_annot'] = 0
+        # self.df.loc[self.df['StudyInstanceUID'].isin(self.df_annot['StudyInstanceUID']), 'has_annot'] = 1
+        self.filenames = self.df[self.df['StudyInstanceUID'].isin(self.df_annot['StudyInstanceUID'])]['StudyInstanceUID'].unique().tolist()
 
         self.transform = transform
         self.dataset_filepath = dataset_filepath
