@@ -111,7 +111,6 @@ class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 
 criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
-# criterion = BCEwithLabelSmoothing(pos_weights=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
 optimizer = Adam(group_weight(model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
 scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6, last_epoch=-1)

@@ -40,9 +40,6 @@ class ImagesWithAnnotationsDataset(Dataset):
     def __init__(self, df, df_annot, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
         self.df = df
         self.df_annot = df_annot
-
-        # self.df['has_annot'] = 0
-        # self.df.loc[self.df['StudyInstanceUID'].isin(self.df_annot['StudyInstanceUID']), 'has_annot'] = 1
         self.filenames = self.df[self.df['StudyInstanceUID'].isin(self.df_annot['StudyInstanceUID'])]['StudyInstanceUID'].unique().tolist()
 
         self.transform = transform
@@ -58,7 +55,7 @@ class ImagesWithAnnotationsDataset(Dataset):
         image_name = '{}.jpg'.format(self.filenames[idx])
         image_filepath = os.path.join(self.dataset_filepath, image_name)
         image = cv2.imread(image_filepath)
-        # image_wo_annot = image.copy()
+        image_wo_annot = image.copy()
 
         df_patient = self.df_annot[self.df_annot["StudyInstanceUID"] == self.filenames[idx]]
         if df_patient.shape[0]:
@@ -76,7 +73,7 @@ class ImagesWithAnnotationsDataset(Dataset):
         new_h = int(image_h * ratio_coeff)
         new_w = int(image_w * ratio_coeff)
         image = cv2.resize(image, (new_w, new_h))
-        # image_wo_annot = cv2.resize(image_wo_annot, (new_w, new_h))
+        image_wo_annot = cv2.resize(image_wo_annot, (new_w, new_h))
 
         w_padding = (self.width_size - new_w) / 2
         h_padding = (self.height_size - new_h) / 2
@@ -88,19 +85,19 @@ class ImagesWithAnnotationsDataset(Dataset):
         result_image = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
         result_image[t_padding:b_padding, l_padding:r_padding, :] = image
         result_image = np.reshape(result_image, (result_image.shape[0], result_image.shape[1], 3))
-        # result_image_wo_annot = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
-        # result_image_wo_annot[t_padding:b_padding, l_padding:r_padding, :] = image_wo_annot
-        # result_image_wo_annot = np.reshape(result_image_wo_annot,
-        #                                    (result_image_wo_annot.shape[0], result_image_wo_annot.shape[1], 3))
+        result_image_wo_annot = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
+        result_image_wo_annot[t_padding:b_padding, l_padding:r_padding, :] = image_wo_annot
+        result_image_wo_annot = np.reshape(result_image_wo_annot,
+                                           (result_image_wo_annot.shape[0], result_image_wo_annot.shape[1], 3))
 
         image_df = self.df[self.df['StudyInstanceUID'] == self.filenames[idx]]
         labels = image_df.iloc[0, 1:12].values.astype('float').reshape(11)
 
         if self.transform:
             result_image = self.transform(image=result_image)
-            # result_image_wo_annot = self.transform(image=result_image_wo_annot)
+            result_image_wo_annot = self.transform(image=result_image_wo_annot)
 
-        return result_image['image'], labels
+        return result_image['image'], result_image_wo_annot['image'], labels
 
 
 class ImageDataset(Dataset):

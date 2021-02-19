@@ -87,11 +87,15 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_640_2_stage'
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_640_2_stage_'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
-teacher_model = EfficientNet3Stage(11, pretrained_backbone=True, mixed_precision=True,
-                                   model_name='tf_efficientnet_b7_ns', checkpoint_path='tf_efficientnet_b7_ns_600_annot/tf_efficientnet_b7_ns_600_annot_epoch_2_val_auc_0.995_loss_0.533_train_auc_0.968_loss_4.036.pth')
+teacher_model = EfficientNet3Stage(
+    11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns',
+    checkpoint_path='tf_efficientnet_b7_ns_640_stage1/tf_efficientnet_b7_ns_640_stage1_epoch_4_val_auc_1.0_loss_'
+                    '0.281_train_auc_0.992_loss_0.455.pth')
+for param in teacher_model.parameters():
+    param.requires_grad = False
 student_model = EfficientNet3Stage(11, pretrained_backbone=True, mixed_precision=True,
                                    model_name='tf_efficientnet_b7_ns')
 
@@ -101,15 +105,15 @@ if torch.cuda.device_count() > 1:
     student_model = torch.nn.DataParallel(student_model)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
-                 52.679245283018865, 9.152656621728786, 4.7851333032083145,
-                 8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
+# class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
+#                  52.679245283018865, 9.152656621728786, 4.7851333032083145,
+#                  8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
 class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 
-train_criterion = CustomLoss(weights=(0.5, 1.), class_weights=torch.tensor(class_weights).to(device))
-valid_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
+train_criterion = CustomLoss(weights=(0.5, 1.))
+valid_criterion = torch.nn.BCEWithLogitsLoss()
 
 optimizer = Adam(group_weight(student_model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
 scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6, last_epoch=-1)
@@ -124,7 +128,7 @@ for epoch in range(20):
     total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model_2_stage(
         student_model, val_loader, device, valid_criterion, scaler)
 
-    writer.add_scalars('avg/loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
+    writer.add_scalars('avg/total loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
     writer.add_scalars('avg/auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
     for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
         writer.add_scalars('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2}, epoch)
