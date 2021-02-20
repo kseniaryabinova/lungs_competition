@@ -37,7 +37,7 @@ os.makedirs('tensorboard_runs', exist_ok=True)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-width_size = 640
+width_size = 600
 
 df = pd.read_csv('train_folds.csv')
 train_df = df[df['fold'] != 1]
@@ -61,7 +61,8 @@ train_image_transforms = alb.Compose([
         p=0.5
     ),
     alb.RandomResizedCrop(
-        height=int(0.8192 * width_size),
+        # height=int(0.8192 * width_size),
+        height=width_size,
         width=width_size,
         scale=(0.5, 1.5),
         p=0.5
@@ -81,9 +82,11 @@ train_image_transforms = alb.Compose([
     alb.CoarseDropout(
         max_holes=12,
         min_holes=6,
-        max_height=int(0.8192 * width_size / 6),
+        # max_height=int(0.8192 * width_size / 6),
+        max_height=int(width_size / 6),
         max_width=int(width_size / 6),
-        min_height=int(0.8192 * width_size / 20),
+        # min_height=int(0.8192 * width_size / 20),
+        min_height=int(width_size / 20),
         min_width=int(width_size / 20),
         p=0.5
     ),
@@ -106,9 +109,7 @@ checkpoints_dir_name = 'tf_efficientnet_b7_ns_{}'.format(width_size)
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
-model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns',
-                     checkpoint_path='tf_efficientnet_b7_ns_640_2_stage_/tf_efficientnet_b7_ns_640_2_stage__'
-                                     'epoch_12_val_auc_0.908_loss_0.188_train_auc_0.905_loss_0.359.pth')
+model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns')
 # model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
 # model = EfficientNetSA(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
 
@@ -137,6 +138,7 @@ for epoch in range(20):
         model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=8, clip_grads=False)
     total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model(
         model, val_loader, device, criterion, scaler)
+    scheduler.step()
 
     writer.add_scalars('avg/loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
     writer.add_scalars('avg/auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
@@ -155,7 +157,7 @@ for epoch in range(20):
            val_duration, total_val_loss, val_avg_auc, str(datetime.now(timezone('Europe/Moscow')))))
 
     torch.save(model.state_dict(),
-               os.path.join(checkpoints_dir_name, '{}_epoch_{}_val_auc_{}_loss_{}_train_auc_{}_loss_{}.pth'.format(
+               os.path.join(checkpoints_dir_name, '{}_epoch{}_val_auc{}_loss{}_train_auc{}_loss{}.pth'.format(
                    checkpoints_dir_name, epoch + 1, round(val_avg_auc, 3), round(total_val_loss, 3),
                    round(train_avg_auc, 3), round(total_train_loss, 3))))
 

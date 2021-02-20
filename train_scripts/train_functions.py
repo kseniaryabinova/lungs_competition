@@ -52,10 +52,10 @@ def get_metric(predictions, ground_truth):
     ground_truth = np.nan_to_num(ground_truth, nan=0.0, posinf=1.0, neginf=0.0)
     aucs = roc_auc_score(ground_truth, predictions, average=None)
 
-    rocs_parameters = []
-    for i in range(predictions.shape[1]):
-        fpr, tpr, _ = roc_curve(ground_truth[:, i], predictions[:, i])
-        rocs_parameters.append((fpr, tpr))
+    # rocs_parameters = []
+    # for i in range(predictions.shape[1]):
+    #     fpr, tpr, _ = roc_curve(ground_truth[:, i], predictions[:, i])
+    #     rocs_parameters.append((fpr, tpr))
 
     return np.mean(aucs), aucs
 

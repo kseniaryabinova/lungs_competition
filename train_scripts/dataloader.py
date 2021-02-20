@@ -118,25 +118,27 @@ class ImageDataset(Dataset):
         # image = cv2.imread(image_filepath, cv2.IMREAD_GRAYSCALE)
         image = cv2.imread(image_filepath)
 
-        image_h, image_w = image.shape[0], image.shape[1]
-        if image_h / image_w > self.image_h_w_ratio:
-            ratio_coeff = self.height_size / image_h
-        else:
-            ratio_coeff = self.width_size / image_w
-        new_h = int(image_h * ratio_coeff)
-        new_w = int(image_w * ratio_coeff)
-        image = cv2.resize(image, (new_w, new_h))
+        # image_h, image_w = image.shape[0], image.shape[1]
+        # if image_h / image_w > self.image_h_w_ratio:
+        #     ratio_coeff = self.height_size / image_h
+        # else:
+        #     ratio_coeff = self.width_size / image_w
+        # new_h = int(image_h * ratio_coeff)
+        # new_w = int(image_w * ratio_coeff)
+        # image = cv2.resize(image, (new_w, new_h))
 
-        w_padding = (self.width_size - new_w) / 2
-        h_padding = (self.height_size - new_h) / 2
-        l_padding = int(w_padding)
-        t_padding = int(h_padding)
-        r_padding = int(new_w + (w_padding if w_padding % 1 == 0 else w_padding - 0.5))
-        b_padding = int(new_h + (h_padding if h_padding % 1 == 0 else h_padding - 0.5))
+        # w_padding = (self.width_size - new_w) / 2
+        # h_padding = (self.height_size - new_h) / 2
+        # l_padding = int(w_padding)
+        # t_padding = int(h_padding)
+        # r_padding = int(new_w + (w_padding if w_padding % 1 == 0 else w_padding - 0.5))
+        # b_padding = int(new_h + (h_padding if h_padding % 1 == 0 else h_padding - 0.5))
+        #
+        # result_image = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
+        # result_image[t_padding:b_padding, l_padding:r_padding, :] = image
+        # result_image = np.reshape(result_image, (result_image.shape[0], result_image.shape[1], 3))
 
-        result_image = np.full((self.height_size, self.width_size, 3), 0, dtype=np.uint8)
-        result_image[t_padding:b_padding, l_padding:r_padding, :] = image
-        result_image = np.reshape(result_image, (result_image.shape[0], result_image.shape[1], 3))
+        result_image = cv2.resize(image, (self.width_size, self.width_size))
 
         if self.transform:
             result_image = self.transform(image=result_image)

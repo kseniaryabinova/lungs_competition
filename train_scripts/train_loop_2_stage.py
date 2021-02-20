@@ -87,7 +87,7 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=16, num_workers=48, pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_640_2_stage_'
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_640_2_stage_10epoch'
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 teacher_model = EfficientNet3Stage(
@@ -116,17 +116,18 @@ train_criterion = CustomLoss(weights=(0.5, 1.))
 valid_criterion = torch.nn.BCEWithLogitsLoss()
 
 optimizer = Adam(group_weight(student_model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
-scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6, last_epoch=-1)
+scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-6, last_epoch=-1)
 teacher_model = teacher_model.to(device)
 student_model = student_model.to(device)
 teacher_model.eval()
 
-for epoch in range(20):
+for epoch in range(10):
     total_train_loss, train_avg_auc, train_auc, train_data_pr, train_duration = one_epoch_train_2_stage(
         teacher_model, student_model, train_loader, optimizer, train_criterion,
         device, scaler, iters_to_accumulate=8, clip_grads=False)
     total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model_2_stage(
         student_model, val_loader, device, valid_criterion, scaler)
+    scheduler.step()
 
     writer.add_scalars('avg/total loss', {'train': total_train_loss, 'val': total_val_loss}, epoch)
     writer.add_scalars('avg/auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
