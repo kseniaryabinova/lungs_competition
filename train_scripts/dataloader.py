@@ -40,7 +40,8 @@ class ImagesWithAnnotationsDataset(Dataset):
     def __init__(self, df, df_annot, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
         self.df = df
         self.df_annot = df_annot
-        self.filenames = self.df[self.df['StudyInstanceUID'].isin(self.df_annot['StudyInstanceUID'])]['StudyInstanceUID'].unique().tolist()
+        self.filenames = self.df[self.df['StudyInstanceUID'].isin(self.df_annot['StudyInstanceUID'])][
+            'StudyInstanceUID'].unique().tolist()
 
         self.transform = transform
         self.dataset_filepath = dataset_filepath
@@ -98,6 +99,33 @@ class ImagesWithAnnotationsDataset(Dataset):
             result_image_wo_annot = self.transform(image=result_image_wo_annot)
 
         return result_image['image'], result_image_wo_annot['image'], labels
+
+
+class ChestXDataset(Dataset):
+    def __init__(self, df, transform, dataset_filepath, width_size=128):
+        self.df = df
+        self.transform = transform
+        self.dataset_filepath = dataset_filepath
+        self.width_size = width_size
+        self.classes = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion',
+                        'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'No Finding', 'Mass',
+                        'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        image_file = self.df.iloc[idx]['Image Index']
+        filepath = os.path.join(self.dataset_filepath, self.df.iloc[idx]['dirname'], 'images', image_file)
+        image = cv2.imread(filepath)
+        image = cv2.resize(image, (self.width_size, self.width_size))
+
+        if self.transform:
+            image = self.transform(image=image)['image']
+
+        labels = self.df.iloc[idx][self.classes].values.astype('float').reshape(len(self.classes))
+
+        return image, labels
 
 
 class ImageDataset(Dataset):
