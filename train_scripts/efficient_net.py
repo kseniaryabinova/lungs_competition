@@ -17,7 +17,7 @@ class EfficientNet(nn.Module):
         self.pooling = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Sequential(
             nn.BatchNorm1d(n_features, momentum=0.99, eps=1e-3, affine=True),
-            nn.Linear(n_features, n_classes)
+            nn.Linear(n_features, 15)
         )
 
         if checkpoint_path is not None:
@@ -30,6 +30,11 @@ class EfficientNet(nn.Module):
                 new_state_dict[name] = v
 
             self.load_state_dict(new_state_dict)
+
+        self.classifier = nn.Sequential(
+            nn.BatchNorm1d(n_features, momentum=0.99, eps=1e-3, affine=True),
+            nn.Linear(n_features, n_classes)
+        )
 
     def forward(self, x):
         if self.amp:

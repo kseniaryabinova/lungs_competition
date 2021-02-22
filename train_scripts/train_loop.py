@@ -109,7 +109,8 @@ checkpoints_dir_name = 'tf_efficientnet_b7_ns_{}'.format(width_size)
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
-model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns')
+model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns',
+                     checkpoint_path='tf_efficientnet_b7_ns_pretrain_600/tf_efficientnet_b7_ns_pretrain_600_epoch6_val_auc0.829_loss0.244_train_auc0.808_loss0.177.pth')
 # model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
 # model = EfficientNetSA(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
 
