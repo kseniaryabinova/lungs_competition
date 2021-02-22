@@ -42,9 +42,10 @@ def eval_model(model, val_loader: DataLoader,
     total_loss /= iter_counter
     predictions = np.array(predictions, dtype=np.float)
     ground_truth = np.array(ground_truth, dtype=np.float)
-    avg_auc, aucs = get_metric(predictions, ground_truth)
+    avg_auc, aucs, rocs_parameters = get_metric(predictions, ground_truth)
 
-    return total_loss, avg_auc, aucs, (predictions, ground_truth), time.time() - start_time
+    return total_loss, avg_auc, aucs, rocs_parameters, (predictions, ground_truth), \
+           time.time() - start_time
 
 
 def get_metric(predictions, ground_truth):
@@ -52,12 +53,12 @@ def get_metric(predictions, ground_truth):
     ground_truth = np.nan_to_num(ground_truth, nan=0.0, posinf=1.0, neginf=0.0)
     aucs = roc_auc_score(ground_truth, predictions, average=None)
 
-    # rocs_parameters = []
-    # for i in range(predictions.shape[1]):
-    #     fpr, tpr, _ = roc_curve(ground_truth[:, i], predictions[:, i])
-    #     rocs_parameters.append((fpr, tpr))
+    rocs_parameters = []
+    for i in range(predictions.shape[1]):
+        fpr, tpr, _ = roc_curve(ground_truth[:, i], predictions[:, i])
+        rocs_parameters.append((fpr, tpr))
 
-    return np.mean(aucs), aucs
+    return np.mean(aucs), aucs, rocs_parameters
 
 
 def group_weight(module, weight_decay):
@@ -132,9 +133,10 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
     total_loss /= iter_counter / iters_to_accumulate
     predictions = np.array(predictions, dtype=np.float)
     ground_truth = np.array(ground_truth, dtype=np.float)
-    avg_auc, aucs = get_metric(predictions, ground_truth)
+    avg_auc, aucs, rocs_parameters = get_metric(predictions, ground_truth)
 
-    return total_loss, avg_auc, aucs, (predictions, ground_truth), time.time() - start_time
+    return total_loss, avg_auc, aucs, rocs_parameters, (predictions, ground_truth), \
+           time.time() - start_time
 
 
 class CustomLoss(nn.Module):

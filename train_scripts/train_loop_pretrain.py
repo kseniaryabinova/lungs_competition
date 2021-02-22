@@ -125,10 +125,10 @@ criterion = torch.nn.BCEWithLogitsLoss()
 # criterion = BCEwithLabelSmoothing(pos_weights=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
 optimizer = Adam(group_weight(model, weight_decay=1e-4), lr=1e-4, weight_decay=0)
-scheduler = CosineAnnealingLR(optimizer, T_max=50, eta_min=1e-6, last_epoch=-1)
+scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6, last_epoch=-1)
 model = model.to(device)
 
-for epoch in range(50):
+for epoch in range(20):
     total_train_loss, train_avg_auc, train_auc, train_data_pr, train_duration = one_epoch_train(
         model, train_loader, optimizer, criterion, device, scaler, iters_to_accumulate=8, clip_grads=False)
     total_val_loss, val_avg_auc, val_auc, val_data_pr, val_duration = eval_model(
