@@ -141,11 +141,11 @@ class UnlabeledImageDataset(Dataset):
 
     def __getitem__(self, idx):
         image_filepath = self.files[idx]
-        image = cv2.imread(image_filepath, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imread(image_filepath)
         image = cv2.resize(image, (self.width_size, self.width_size))
 
         if self.transform:
-            image = self.transform(image)['image']
+            image = self.transform(image=image)['image']
 
         return image
 
