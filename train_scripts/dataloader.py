@@ -128,6 +128,28 @@ class ChestXDataset(Dataset):
         return image, labels
 
 
+class UnlabeledImageDataset(Dataset):
+    def __init__(self, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
+        self.files = [filepath for filepath in glob.iglob(os.path.join(dataset_filepath, '*'))]
+        self.transform = transform
+        self.image_h_w_ratio = image_h_w_ratio
+        self.width_size = width_size
+        self.height_size = int(self.image_h_w_ratio * self.width_size)
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        image_filepath = self.files[idx]
+        image = cv2.imread(image_filepath, cv2.IMREAD_GRAYSCALE)
+        image = cv2.resize(image, (self.width_size, self.width_size))
+
+        if self.transform:
+            image = self.transform(image)['image']
+
+        return image
+
+
 class ImageDataset(Dataset):
     def __init__(self, df, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
         self.df = df
