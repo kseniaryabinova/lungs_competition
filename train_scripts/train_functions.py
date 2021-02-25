@@ -240,24 +240,25 @@ def eval_model_2_stage(model, val_loader: DataLoader,
 
 
 class UnlabeledLoss(nn.Module):
-    def __init__(self, t1, t2, alpha, class_weights=None):
+    def __init__(self, t1, t2, alpha, class_weights=None, threshold=0.99):
         super(UnlabeledLoss, self).__init__()
         self.t1 = t1
         self.t2 = t2
         self.alpha = alpha
         self.class_weights = class_weights
+        self.threshold = threshold
         self.unlabeled_loss = torch.nn.BCEWithLogitsLoss(pos_weight=class_weights)
 
     def get_weight(self, epoch):
-        if epoch < self.t1:
+        if epoch <= self.t1:
             return 0.
-        elif self.t1 <= epoch < self.t2:
+        elif self.t1 < epoch < self.t2:
             return (epoch - self.t1) / (self.t2 - self.t1) * self.alpha
         elif self.t2 <= epoch:
             return self.alpha
 
     def get_labels_out_of_predictions(self, predictions):
-        return (predictions > 0.5).float()
+        return (predictions > self.threshold).float()
 
     def forward(self, epoch, predictions):
         weight = self.get_weight(epoch)
@@ -281,6 +282,8 @@ def train_one_epoch_pseudolabel(epoch: int, model: nn.Module,
             device, scaler, iters_to_accumulate, clip_grads)
     else:
         for i, unlabeled_inputs in enumerate(train_loader_without_labels):
+            unlabeled_inputs = unlabeled_inputs[0]
+
             if scaler is not None:
                 with autocast():
                     outputs = model(unlabeled_inputs.to(device))

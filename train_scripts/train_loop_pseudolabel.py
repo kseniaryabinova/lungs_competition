@@ -28,7 +28,7 @@ import albumentations as alb
 import wandb
 
 from adas_optimizer import Adas
-from dataloader import ImageDataset, UnlabeledImageDataset
+from dataloader import ImageDataset, UnlabeledImageDataset, ChestXDataset
 from resnet import ResNet18, ResNet34
 from efficient_net import EfficientNet
 from train_functions import one_epoch_train, eval_model, group_weight, UnlabeledLoss, train_one_epoch_pseudolabel
@@ -42,13 +42,16 @@ writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time
 wandb.init(project='effnet5', group=wandb.util.generate_id())
 
 width_size = 512
-wandb.config.width_size = width_size
-wandb.config.aspect_rate = 1
 
 batch_size = 16
 accumulation_step = 1
-wandb.config.batch_size = batch_size
-wandb.config.accumulation_step = accumulation_step
+
+wandb.config.update({
+    "width_size": width_size,
+    "aspect_rate": 1,
+    "batch_size": batch_size,
+    "accumulation_step": accumulation_step,
+})
 
 df = pd.read_csv('train_folds.csv')
 train_df = df[df['fold'] != 1]
@@ -112,14 +115,23 @@ val_image_transforms = alb.Compose([
 val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
 val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=48, pin_memory=True, drop_last=True)
 
-unlabeled_set = UnlabeledImageDataset(val_image_transforms, '../ranzcr/test', width_size=width_size)
-unlabeled_loader = DataLoader(unlabeled_set, batch_size=batch_size, num_workers=48,
-                                  pin_memory=True, drop_last=True)
-wandb.config.is_pseudolabel = 'yes'
+chestx_df = pd.read_csv('data.csv')
+unlabeled_set = ChestXDataset(chestx_df, val_image_transforms, '../data', width_size=width_size)
+unlabeled_loader = DataLoader(unlabeled_set, batch_size=16, num_workers=48, pin_memory=True, drop_last=True)
+# unlabeled_set = UnlabeledImageDataset(val_image_transforms, '../ranzcr/test', width_size=width_size)
+# unlabeled_loader = DataLoader(unlabeled_set, batch_size=batch_size, num_workers=48,
+#                                   pin_memory=True, drop_last=True)
 
-checkpoints_dir_name = 'tf_efficientnet_b5_ns_pseudolabel'.format(width_size)
+pseudolabel_threshold = 0.99
+wandb.config.update({
+    "is_pseudolabel": 'yes',
+    'pseudolabel_dataset': 'chestx',
+    'pseudolabel_threshold': pseudolabel_threshold,
+})
+
+checkpoints_dir_name = 'tf_efficientnet_b5_ns_pseudolabel_chestx'.format(width_size)
 os.makedirs(checkpoints_dir_name, exist_ok=True)
-wandb.config.model_name = checkpoints_dir_name
+wandb.config.update({"model_name": checkpoints_dir_name})
 
 model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
 
@@ -131,26 +143,28 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
 #                  52.679245283018865, 9.152656621728786, 4.7851333032083145,
 #                  8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
-wandb.config.is_loss_weights = 'no'
+wandb.config.update({"is_loss_weights": 'no'})
 class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
                'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 
 # criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weights).to(device))
 labeled_criterion = torch.nn.BCEWithLogitsLoss()
-unlabeled_criterion = UnlabeledLoss(t1=12, t2=17, alpha=3., class_weights=None)
+unlabeled_criterion = UnlabeledLoss(t1=8, t2=20, alpha=3., class_weights=None, threshold=pseudolabel_threshold)
 # criterion = BCEwithLabelSmoothing(pos_weights=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
 lr_start = 1e-4
 lr_end = 1e-6
 weight_decay = 0
 epoch_num = 20
-wandb.config.lr_start = lr_start
-wandb.config.lr_end = lr_end
-wandb.config.weight_decay = weight_decay
-wandb.config.epoch_num = epoch_num
-wandb.config.optimizer = 'adam'
-wandb.config.scheduler = 'CosineAnnealingLR'
+wandb.config.update({
+    "lr_start": lr_start,
+    "lr_end": lr_end,
+    "weight_decay": weight_decay,
+    "epoch_num": epoch_num,
+    "optimizer": 'adam',
+    "scheduler": 'CosineAnnealingLR',
+})
 
 # optimizer = Adam(group_weight(model, weight_decay=weight_decay), lr=lr_start, weight_decay=0)
 optimizer = Adam(model.parameters(), lr=lr_start, weight_decay=0)
@@ -178,11 +192,11 @@ for epoch in range(epoch_num):
                             val_data_pr[1][:, i], val_data_pr[0][:, i], global_step=epoch)
     writer.flush()
 
-    for class_name, train_params, val_params in zip(class_names, train_rocs, val_rocs):
-        train_data = [[x, y] for (x, y) in zip(*train_params)]
-        wandb.log({'{} train_roc epoch {}'.format(class_name, epoch): wandb.Table(data=train_data, columns=['fpr', 'tpr'])})
-        val_data = [[x, y] for (x, y) in zip(*val_params)]
-        wandb.log({'{} val_roc epoch {}'.format(class_name, epoch): wandb.Table(data=val_data, columns=['fpr', 'tpr'])})
+    # for class_name, train_params, val_params in zip(class_names, train_rocs, val_rocs):
+    #     train_data = [[x, y] for (x, y) in zip(*train_params)]
+    #     wandb.log({'{} train_roc epoch {}'.format(class_name, epoch): wandb.Table(data=train_data, columns=['fpr', 'tpr'])})
+    #     val_data = [[x, y] for (x, y) in zip(*val_params)]
+    #     wandb.log({'{} val_roc epoch {}'.format(class_name, epoch): wandb.Table(data=val_data, columns=['fpr', 'tpr'])})
     wandb.log({'train_loss': train_loss, 'val_loss': val_loss,
                'train_auc': train_avg_auc, 'val_auc': val_avg_auc, 'epoch': epoch})
     for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
