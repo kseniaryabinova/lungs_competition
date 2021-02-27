@@ -20,6 +20,7 @@ from torch.utils.data.dataset import T_co
 
 from torchvision import transforms
 
+np.random.seed(25)
 torch.manual_seed(25)
 
 COLOR_MAP = {'ETT - Abnormal': (255, 0, 0),
@@ -128,6 +129,47 @@ class ChestXDataset(Dataset):
         return image, labels
 
 
+class NoisyStudentDataset(Dataset):
+    def __init__(self, ranzcr_df, chestx_df, transform, ranzcr_path, chestx_path, width_size=128):
+        self.ranzcr_df = ranzcr_df
+        self.chestx_df = chestx_df
+        self.transform = transform
+        self.ranzcr_path = ranzcr_path
+        self.chestx_path = chestx_path
+        self.width_size = width_size
+
+        self.indices = np.arange(len(self.ranzcr_df) + len(self.chestx_df))
+        np.random.shuffle(self.indices)
+
+        self.class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
+                            'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
+                            'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
+
+    def __len__(self):
+        return len(self.ranzcr_df) + len(self.chestx_df)
+
+    def __getitem__(self, idx):
+        index = self.indices[idx]
+
+        if index < len(self.ranzcr_df):
+            image_name = '{}.jpg'.format(self.ranzcr_df.iloc[index]['StudyInstanceUID'])
+            image_filepath = os.path.join(self.ranzcr_path, image_name)
+            image = cv2.imread(image_filepath)
+            labels = self.ranzcr_df.iloc[index, 1:12].values.astype('float').reshape(len(self.class_names))
+        else:
+            index -= len(self.ranzcr_df)
+            image_file = self.chestx_df.iloc[index]['Image Index']
+            filepath = os.path.join(self.chestx_path, self.chestx_df.iloc[index]['dirname'], 'images', image_file)
+            image = cv2.imread(filepath)
+            labels = self.chestx_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
+
+        image = cv2.resize(image, (self.width_size, self.width_size))
+        if self.transform:
+            image = self.transform(image=image)['image']
+
+        return image, labels
+
+
 class UnlabeledImageDataset(Dataset):
     def __init__(self, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
         self.files = [filepath for filepath in glob.iglob(os.path.join(dataset_filepath, '*'))]
@@ -204,7 +246,9 @@ if __name__ == '__main__':
     width_size = 600
 
     image_transforms = alb.Compose([
+        alb.ImageCompression(quality_lower=65, p=0.5),
         alb.HorizontalFlip(p=0.5),
+        alb.CLAHE(p=0.5),
         alb.OneOf([
             alb.GridDistortion(
                 num_steps=8,
@@ -217,31 +261,46 @@ if __name__ == '__main__':
                 p=1.0,
             ),
             alb.ElasticTransform(alpha=3, p=1.0)],
-            p=0.5
+            p=0.7
         ),
         alb.RandomResizedCrop(
-            height=int(0.8192 * width_size),
-            # height=width_size,
+            # height=int(0.8192 * width_size),
+            height=width_size,
             width=width_size,
-            scale=(0.5, 1.5),
+            scale=(0.8, 1.2),
+            p=0.7
+        ),
+        alb.RGBShift(p=0.5),
+        alb.RandomSunFlare(p=0.5),
+        alb.RandomFog(p=0.5),
+        alb.RandomBrightnessContrast(p=0.5),
+        alb.HueSaturationValue(
+            hue_shift_limit=20,
+            sat_shift_limit=20,
+            val_shift_limit=20,
             p=0.5
         ),
         alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
         alb.CoarseDropout(
             max_holes=12,
             min_holes=6,
-            max_height=int(0.8192 * width_size / 6),
+            max_height=int(width_size / 6),
             max_width=int(width_size / 6),
-            min_height=int(0.8192 * width_size / 20),
+            min_height=int(width_size / 6),
             min_width=int(width_size / 20),
             p=0.5
         ),
+        alb.IAAAdditiveGaussianNoise(loc=0, scale=(2.5500000000000003, 12.75), per_channel=False, p=0.5),
+        alb.IAAAffine(scale=1.0, translate_percent=None, translate_px=None, rotate=0.0, shear=0.0, order=1, cval=0,
+                      mode='reflect', p=0.5),
+        alb.IAAAffine(rotate=90., p=0.5),
+        alb.IAAAffine(rotate=180., p=0.5),
         alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ])
 
-    # dataset = ImageDataset(train_df, image_transforms, '../dataset/train', width_size=640)
-    dataset = ImagesWithAnnotationsDataset(train_df, annot_df, image_transforms,
-                                           '../dataset/train', width_size=width_size)
+    dataset = ImageDataset(train_df, image_transforms, '../dataset/train', width_size=640)
+    # dataset = ImagesWithAnnotationsDataset(train_df, annot_df, image_transforms,
+    #                                        '../dataset/train', width_size=width_size)
 
     for i in range(10):
         image, labels = dataset[i]
