@@ -104,7 +104,7 @@ train_image_transforms = alb.Compose([
 wandb.config.train_augmentations = str(train_image_transforms.transforms.transforms)
 train_set = NoisyStudentDataset(ranzcr_train_df, chestx_df, train_image_transforms,
                                 '../ranzcr/train', '../data', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
+train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
 
 ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
 valid_image_transforms = alb.Compose([
@@ -112,7 +112,7 @@ valid_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
-valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=48, pin_memory=True, drop_last=False)
+valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=0, pin_memory=True, drop_last=False)
 
 checkpoints_dir_name = 'tf_efficientnet_b7_ns_noisy_student_{}'.format(width_size)
 os.makedirs(checkpoints_dir_name, exist_ok=True)
