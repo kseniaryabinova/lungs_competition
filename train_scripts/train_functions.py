@@ -41,7 +41,7 @@ def eval_model(model, val_loader: DataLoader,
 
     total_loss /= iter_counter
     predictions = np.array(predictions, dtype=np.float)
-    ground_truth = np.array(ground_truth, dtype=np.float)
+    ground_truth = np.array(ground_truth, dtype=np.int)
     avg_auc, aucs, rocs_parameters = get_metric(predictions, ground_truth)
 
     return total_loss, avg_auc, aucs, rocs_parameters, (predictions, ground_truth), \
