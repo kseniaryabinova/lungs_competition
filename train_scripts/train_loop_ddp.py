@@ -4,6 +4,9 @@ import torch
 
 from train_functions_for_ddp import train_function
 
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 gpus = 4
 nodes = 1
