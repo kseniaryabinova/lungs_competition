@@ -23,7 +23,7 @@ import albumentations as alb
 
 from adas_optimizer import Adas
 from dataloader import ImageDataset, NoisyStudentDataset
-from efficient_net import EfficientNet
+from efficient_net import EfficientNet, EfficientNetNoisyStudent
 from train_functions import one_epoch_train, eval_model
 from vit import ViT
 
@@ -31,6 +31,9 @@ import wandb
 
 
 def train_function(gpu, world_size, node_rank, gpus):
+    import torch.multiprocessing
+    torch.multiprocessing.set_sharing_strategy('file_system')
+
     torch.manual_seed(25)
     np.random.seed(25)
 
@@ -118,101 +121,45 @@ def train_function(gpu, world_size, node_rank, gpus):
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False, num_workers=4, sampler=train_sampler)
 
-    # df = pd.read_csv('train_with_split.csv')
-    # train_df = df[df['split'] == 1]
-    # train_image_transforms = alb.Compose([
-    #     # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
-    #     alb.HorizontalFlip(p=0.7),
-    #     alb.CLAHE(p=0.5),
-    #     alb.OneOf([
-    #         alb.GridDistortion(
-    #             num_steps=8,
-    #             distort_limit=0.5,
-    #             p=1.0
-    #         ),
-    #         alb.OpticalDistortion(
-    #             distort_limit=0.5,
-    #             shift_limit=0.5,
-    #             p=1.0,
-    #         ),
-    #         alb.ElasticTransform(alpha=3, p=1.0)],
-    #         p=0.7
-    #     ),
-    #     alb.RandomResizedCrop(
-    #         height=int(0.8192 * width_size),
-    #         width=width_size,
-    #         scale=(0.5, 1.5),
-    #         p=0.7
-    #     ),
-    #     alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
-    #     alb.HueSaturationValue(
-    #         hue_shift_limit=20,
-    #         sat_shift_limit=20,
-    #         val_shift_limit=20,
-    #         p=0.7
-    #     ),
-    #     alb.RandomBrightnessContrast(
-    #         brightness_limit=(-0.15, 0.15),
-    #         contrast_limit=(-0.15, 0.15),
-    #         p=0.7
-    #     ),
-    #     alb.CoarseDropout(
-    #         max_holes=12,
-    #         min_holes=6,
-    #         max_height=int(0.8192 * width_size / 6),
-    #         max_width=int(width_size / 6),
-    #         min_height=int(0.8192 * width_size / 20),
-    #         min_width=int(width_size / 20),
-    #         p=0.7
-    #     ),
-    #     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    #     ToTensorV2()
-    # ])
-    # train_set = ImageDataset(train_df, train_image_transforms, '../ranzcr/train', width_size=width_size)
-    # train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
-    # train_loader = DataLoader(train_set, batch_size=5, shuffle=False, num_workers=12, sampler=train_sampler)
-
     ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
     valid_image_transforms = alb.Compose([
         alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ])
     valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
+    valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, pin_memory=False, drop_last=False)
 
-    # val_df = df[df['split'] == 0]
-    # val_image_transforms = alb.Compose([
-    #     # alb.PadIfNeeded(min_height=width_size, min_width=width_size),
+    # ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
+    # valid_image_transforms = alb.Compose([
     #     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     #     ToTensorV2()
     # ])
-    # val_set = ImageDataset(val_df, val_image_transforms, '../ranzcr/train', width_size=width_size)
-    valid_sampler = DistributedSampler(valid_set, num_replicas=world_size, rank=rank)
-    valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, sampler=valid_sampler)
+    # valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
+    # valid_sampler = DistributedSampler(valid_set, num_replicas=world_size, rank=rank)
+    # valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, sampler=valid_sampler)
 
-    checkpoints_dir_name = 'tf_efficientnet_b7_ns_noisy_student_{}'.format(width_size)
+    checkpoints_dir_name = 'tf_efficientnet_b7_noisy_student_{}'.format(width_size)
     os.makedirs(checkpoints_dir_name, exist_ok=True)
 
-    # checkpoints_dir_name = 'tf_efficientnet_b7_ns_ddp'
-    # os.makedirs(checkpoints_dir_name, exist_ok=True)
-
-    model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns')
+    model = EfficientNetNoisyStudent(11, pretrained_backbone=True,
+                                     mixed_precision=True, model_name='tf_efficientnet_b7_ns')
     model = SyncBatchNorm.convert_sync_batchnorm(model)
     model.to(device)
     model = DistributedDataParallel(model, device_ids=[gpu])
 
-    class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
-                     52.679245283018865, 9.152656621728786, 4.7851333032083145,
-                     8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
+    # class_weights = [354.625, 23.73913043478261, 2.777105767812362, 110.32608695652173,
+    #                  52.679245283018865, 9.152656621728786, 4.7851333032083145,
+    #                  8.437891632878731, 2.4620064899945917, 0.4034751151063363, 31.534942820838626]
     class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
                    'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
                    'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
     scaler = GradScaler()
     criterion = torch.nn.BCEWithLogitsLoss()
 
-    lr_start = 3e-4
+    lr_start = 1e-4
     lr_end = 1e-6
     weight_decay = 0
-    epoch_num = 40
+    epoch_num = 20
     if rank == 0:
         wandb.config.model_name = checkpoints_dir_name
         wandb.config.lr_start = lr_start
@@ -228,15 +175,16 @@ def train_function(gpu, world_size, node_rank, gpus):
 
     max_val_auc = 0
 
-    for epoch in range(1, 30):
+    for epoch in range(epoch_num):
         train_loss, train_avg_auc, train_auc, train_rocs, train_data_pr, train_duration = one_epoch_train(
             model, train_loader, optimizer, criterion, device, scaler,
             iters_to_accumulate=accumulation_step, clip_grads=False)
-        val_loss, val_avg_auc, val_auc, val_rocs, val_data_pr, val_duration = eval_model(
-            model, valid_loader, device, criterion, scaler)
+        scheduler.step()
 
         if rank == 0:
-            scheduler.step()
+            val_loss, val_avg_auc, val_auc, val_rocs, val_data_pr, val_duration = eval_model(
+                model, valid_loader, device, criterion, scaler)
+
             wandb.log({'train_loss': train_loss, 'val_loss': val_loss,
                        'train_auc': train_avg_auc, 'val_auc': val_avg_auc, 'epoch': epoch})
             for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):

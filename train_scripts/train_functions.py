@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score, roc_curve
@@ -97,7 +99,9 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
     optimizer.zero_grad()
 
     for i, batch in enumerate(train_loader):
-        inputs, labels = batch
+        sample_cp = copy.deepcopy(batch)
+        del batch
+        inputs, labels = sample_cp
 
         if scaler is not None:
             with autocast():
