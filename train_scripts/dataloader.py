@@ -189,7 +189,31 @@ class UnlabeledImageDataset(Dataset):
         if self.transform:
             image = self.transform(image=image)['image']
 
-        return image
+        return image, image_filepath
+
+
+class PadChestImageDataset(Dataset):
+    def __init__(self, df, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
+        self.df = df
+        self.dataset_filepath = dataset_filepath
+        self.transform = transform
+        self.image_h_w_ratio = image_h_w_ratio
+        self.width_size = width_size
+        self.height_size = int(self.image_h_w_ratio * self.width_size)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        image_file = self.df.iloc[idx]['ImageID']
+        filepath = os.path.join(self.dataset_filepath, image_file)
+        image = cv2.imread(filepath)
+        image = cv2.resize(image, (self.width_size, self.width_size))
+
+        if self.transform:
+            image = self.transform(image=image)['image']
+
+        return image, filepath
 
 
 class ImageDataset(Dataset):
