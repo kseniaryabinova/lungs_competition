@@ -22,9 +22,10 @@ from albumentations.pytorch import ToTensorV2, ToTensor
 import albumentations as alb
 
 from adas_optimizer import Adas
-from dataloader import ImageDataset, NoisyStudentDataset
+from dataloader import ImageDataset, NoisyStudentDataset, PseudolabelDataset
 from efficient_net import EfficientNet, EfficientNetNoisyStudent
 from train_functions import one_epoch_train, eval_model
+from train_loop_noisy_student import ranzcr_train_df
 from vit import ViT
 
 import wandb
@@ -60,8 +61,8 @@ def train_function(gpu, world_size, node_rank, gpus):
         shutil.rmtree('tensorboard_runs', ignore_errors=True)
         writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
 
-    ranzcr_df = pd.read_csv('train_folds.csv')
-    padchest_df = pd.read_csv('/home/neuro/mark/ranzcr_l/data2/padchest_meta.csv')
+    ranzcr_df = pd.read_csv('test_pseudolabel.csv')
+    padchest_df = pd.read_csv('padchest_pseudolabel.csv')
 
     train_image_transforms = alb.Compose([
         alb.ImageCompression(quality_lower=65, p=0.5),
@@ -115,12 +116,13 @@ def train_function(gpu, world_size, node_rank, gpus):
         alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ])
-    train_set = NoisyStudentDataset(ranzcr_train_df, chestx_df, train_image_transforms,
-                                    '../ranzcr/train', '../data', width_size=width_size)
+    train_set = PseudolabelDataset(ranzcr_train_df, padchest_df, train_image_transforms,
+                                   '../rancor/test', 'data2', width_size=width_size)
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False, num_workers=4, sampler=train_sampler)
 
-    ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
+    ranzcr_valid_df = pd.read_csv('train_folds.csv')
+    ranzcr_valid_df = ranzcr_valid_df[ranzcr_valid_df['fold'] == 1]
     valid_image_transforms = alb.Compose([
         alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
@@ -137,7 +139,7 @@ def train_function(gpu, world_size, node_rank, gpus):
     # valid_sampler = DistributedSampler(valid_set, num_replicas=world_size, rank=rank)
     # valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, sampler=valid_sampler)
 
-    checkpoints_dir_name = 'tf_efficientnet_b7_noisy_student_{}'.format(width_size)
+    checkpoints_dir_name = 'tf_efficientnet_b7_ns_pl_{}'.format(width_size)
     os.makedirs(checkpoints_dir_name, exist_ok=True)
 
     model = EfficientNetNoisyStudent(11, pretrained_backbone=True,
@@ -155,10 +157,10 @@ def train_function(gpu, world_size, node_rank, gpus):
     scaler = GradScaler()
     criterion = torch.nn.BCEWithLogitsLoss()
 
-    lr_start = 1e-4
-    lr_end = 1e-6
+    lr_start = 1e-6
+    lr_end = 1e-7
     weight_decay = 0
-    epoch_num = 20
+    epoch_num = 10
     if rank == 0:
         wandb.config.model_name = checkpoints_dir_name
         wandb.config.lr_start = lr_start

@@ -170,6 +170,46 @@ class NoisyStudentDataset(Dataset):
         return image, labels
 
 
+class PseudolabelDataset(Dataset):
+    def __init__(self, ranzcr_df, padchest_df, transform, ranzcr_path, padchest_path, width_size=128):
+        self.ranzcr_df = ranzcr_df
+        self.padchest_df = padchest_df
+        self.transform = transform
+        self.ranzcr_path = ranzcr_path
+        self.padchest_path = padchest_path
+        self.width_size = width_size
+
+        self.indices = np.arange(len(self.ranzcr_df) + len(self.padchest_df))
+        np.random.shuffle(self.indices)
+
+        self.class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
+                            'NGT - Abnormal', 'NGT - Borderline', 'NGT - Incompletely Imaged', 'NGT - Normal',
+                            'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
+
+    def __len__(self):
+        return len(self.ranzcr_df) + len(self.padchest_df)
+
+    def __getitem__(self, idx):
+        index = self.indices[idx]
+
+        if index < len(self.ranzcr_df):
+            image_name = self.ranzcr_df.iloc[index]['filepaths']
+            image_filepath = os.path.join(image_name)
+            image = cv2.imread(image_filepath)
+            labels = self.ranzcr_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
+        else:
+            index -= len(self.ranzcr_df)
+            filepath = self.padchest_df.iloc[index]['filepaths']
+            image = cv2.imread(filepath)
+            labels = self.padchest_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
+
+        image = cv2.resize(image, (self.width_size, self.width_size))
+        if self.transform:
+            image = self.transform(image=image)['image']
+
+        return image, labels
+
+
 class UnlabeledImageDataset(Dataset):
     def __init__(self, transform, dataset_filepath, image_h_w_ratio=0.8192, width_size=128):
         self.files = [filepath for filepath in glob.iglob(os.path.join(dataset_filepath, '*'))]

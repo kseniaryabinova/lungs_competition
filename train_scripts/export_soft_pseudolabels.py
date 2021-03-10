@@ -50,7 +50,6 @@ model.eval()
 model = model.float()
 
 df = pd.DataFrame()
-df['filepath'] = [0] * len(dataset)
 filepaths = []
 
 with torch.no_grad():
