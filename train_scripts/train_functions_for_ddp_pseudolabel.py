@@ -7,25 +7,22 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-import torch
-
 from torch.cuda.amp import GradScaler
 from torch.nn import SyncBatchNorm
 from torch.optim import Adam
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
-from albumentations.pytorch import ToTensorV2, ToTensor
+from albumentations.pytorch import ToTensorV2
 import albumentations as alb
 
 from adas_optimizer import Adas
-from dataloader import ImageDataset, NoisyStudentDataset, PseudolabelDataset
-from efficient_net import EfficientNet, EfficientNetNoisyStudent
+from dataloader import ImageDataset, PseudolabelDataset
+from efficient_net import EfficientNetNoisyStudent
 from train_functions import one_epoch_train, eval_model
-from train_loop_noisy_student import ranzcr_train_df
 from vit import ViT
 
 import wandb
@@ -116,7 +113,7 @@ def train_function(gpu, world_size, node_rank, gpus):
         alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ])
-    train_set = PseudolabelDataset(ranzcr_train_df, padchest_df, train_image_transforms,
+    train_set = PseudolabelDataset(ranzcr_df, padchest_df, train_image_transforms,
                                    '../rancor/test', 'data2', width_size=width_size)
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False, num_workers=4, sampler=train_sampler)
@@ -130,20 +127,13 @@ def train_function(gpu, world_size, node_rank, gpus):
     valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
     valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, pin_memory=False, drop_last=False)
 
-    # ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
-    # valid_image_transforms = alb.Compose([
-    #     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    #     ToTensorV2()
-    # ])
-    # valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
-    # valid_sampler = DistributedSampler(valid_set, num_replicas=world_size, rank=rank)
-    # valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, sampler=valid_sampler)
-
     checkpoints_dir_name = 'tf_efficientnet_b7_ns_pl_{}'.format(width_size)
     os.makedirs(checkpoints_dir_name, exist_ok=True)
 
-    model = EfficientNetNoisyStudent(11, pretrained_backbone=True,
-                                     mixed_precision=True, model_name='tf_efficientnet_b7_ns')
+    model = EfficientNetNoisyStudent(
+        11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b7_ns',
+        checkpoint_path='tf_efficientnet_b7_noisy_student_640/tf_efficientnet_b7_noisy_student_640_epoch19_val_'
+                        'auc0.965_loss0.119_train_auc0.901_loss0.154.pth')
     model = SyncBatchNorm.convert_sync_batchnorm(model)
     model.to(device)
     model = DistributedDataParallel(model, device_ids=[gpu])

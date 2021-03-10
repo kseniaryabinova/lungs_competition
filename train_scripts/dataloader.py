@@ -305,11 +305,12 @@ class ImageDataset(Dataset):
 
 
 if __name__ == '__main__':
-    train_df = pd.read_csv('../dataset/train.csv')
-    annot_df = pd.read_csv('../dataset/train_annotations.csv')
-    width_size = 600
+    width_size = 640
 
-    image_transforms = alb.Compose([
+    ranzcr_df = pd.read_csv('test_pseudolabel.csv')
+    padchest_df = pd.read_csv('padchest_pseudolabel.csv')
+
+    train_image_transforms = alb.Compose([
         alb.ImageCompression(quality_lower=65, p=0.5),
         alb.HorizontalFlip(p=0.5),
         alb.CLAHE(p=0.5),
@@ -328,7 +329,6 @@ if __name__ == '__main__':
             p=0.7
         ),
         alb.RandomResizedCrop(
-            # height=int(0.8192 * width_size),
             height=width_size,
             width=width_size,
             scale=(0.8, 1.2),
@@ -354,23 +354,20 @@ if __name__ == '__main__':
             min_width=int(width_size / 20),
             p=0.5
         ),
-        alb.IAAAdditiveGaussianNoise(loc=0, scale=(2.5500000000000003, 12.75), per_channel=False, p=0.5),
-        alb.IAAAffine(scale=1.0, translate_percent=None, translate_px=None, rotate=0.0, shear=0.0, order=1, cval=0,
-                      mode='reflect', p=0.5),
-        alb.IAAAffine(rotate=90., p=0.5),
-        alb.IAAAffine(rotate=180., p=0.5),
+        # alb.IAAAdditiveGaussianNoise(loc=0, scale=(2.5500000000000003, 12.75), per_channel=False, p=0.5),
+        # alb.IAAAffine(scale=1.0, translate_percent=None, translate_px=None, rotate=0.0, shear=0.0, order=1, cval=0,
+        #               mode='reflect', p=0.5),
+        # alb.IAAAffine(rotate=90., p=0.5),
+        # alb.IAAAffine(rotate=180., p=0.5),
         alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2()
     ])
+    train_set = PseudolabelDataset(ranzcr_df, padchest_df, train_image_transforms,
+                                   '../rancor/test', 'data2', width_size=width_size)
+    train_loader = DataLoader(train_set, batch_size=64, shuffle=False, num_workers=24)
 
-    dataset = ImageDataset(train_df, image_transforms, '../dataset/train', width_size=640)
-    # dataset = ImagesWithAnnotationsDataset(train_df, annot_df, image_transforms,
-    #                                        '../dataset/train', width_size=width_size)
-
-    for i in range(10):
-        image, labels = dataset[i]
-        cv2.imshow('1', image)
-        if cv2.waitKey(0) == 27:
-            break
+    for i, data in enumerate(train_loader):
+        print(i * 64)
 
     # dataset = ImageIterableDataset(train_df, 6400, image_transforms, '../ranzcr/train', max_workers=10)
     # datasets = ImageIterableDataset.split_datasets(train_df, 6400, 24, image_transforms, '../ranzcr/train')
