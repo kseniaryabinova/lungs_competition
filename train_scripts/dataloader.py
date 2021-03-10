@@ -171,15 +171,16 @@ class NoisyStudentDataset(Dataset):
 
 
 class PseudolabelDataset(Dataset):
-    def __init__(self, ranzcr_df, padchest_df, transform, ranzcr_path, padchest_path, width_size=128):
-        self.ranzcr_df = ranzcr_df
+    def __init__(self, ranzcr_train_df, ranzcr_test_df, padchest_df, transform, ranzcr_path, padchest_path, width_size=128):
+        self.ranzcr_test_df = ranzcr_test_df
+        self.ranzcr_train_df = ranzcr_train_df
         self.padchest_df = padchest_df
         self.transform = transform
         self.ranzcr_path = ranzcr_path
         self.padchest_path = padchest_path
         self.width_size = width_size
 
-        self.indices = np.arange(len(self.ranzcr_df) + len(self.padchest_df))
+        self.indices = np.arange(len(self.ranzcr_test_df) + len(self.padchest_df) + len(self.ranzcr_train_df))
         np.random.shuffle(self.indices)
 
         self.class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
@@ -187,23 +188,37 @@ class PseudolabelDataset(Dataset):
                             'CVC - Abnormal', 'CVC - Borderline', 'CVC - Normal', 'Swan Ganz Catheter Present']
 
     def __len__(self):
-        return len(self.ranzcr_df) + len(self.padchest_df)
+        return len(self.ranzcr_test_df) + len(self.padchest_df) + len(self.ranzcr_train_df)
 
     def __getitem__(self, idx):
         index = self.indices[idx]
 
-        if index < len(self.ranzcr_df):
-            image_name = self.ranzcr_df.iloc[index]['filepaths']
+        if index < len(self.ranzcr_test_df):
+            image_name = self.ranzcr_test_df.iloc[index]['filepaths']
             image_filepath = os.path.join(image_name)
             image = cv2.imread(image_filepath)
-            labels = self.ranzcr_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
-        else:
-            index -= len(self.ranzcr_df)
-            filepath = self.padchest_df.iloc[index]['filepaths']
-            image = cv2.imread(filepath)
+            labels = self.ranzcr_test_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
+
+        elif len(self.ranzcr_test_df) <= index < len(self.padchest_df) + len(self.ranzcr_test_df):
+            index -= len(self.ranzcr_test_df)
+            image_filepath = self.padchest_df.iloc[index]['filepaths']
+            image = cv2.imread(image_filepath)
             labels = self.padchest_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
 
-        image = cv2.resize(image, (self.width_size, self.width_size))
+        else:
+            index -= len(self.ranzcr_test_df) + len(self.padchest_df)
+            image_name = '{}.jpg'.format(self.ranzcr_train_df.iloc[index]['StudyInstanceUID'])
+            image_filepath = os.path.join(self.ranzcr_path, image_name)
+            image = cv2.imread(image_filepath)
+            labels = self.ranzcr_train_df.iloc[index][self.class_names].values.astype('float').reshape(len(self.class_names))
+
+        # print(image_filepath)
+        try:
+            image = cv2.resize(image, (self.width_size, self.width_size))
+        except:
+            print(image_filepath)
+            image = cv2.resize(image, (self.width_size, self.width_size))
+
         if self.transform:
             image = self.transform(image=image)['image']
 
