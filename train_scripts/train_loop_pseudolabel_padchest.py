@@ -4,9 +4,6 @@ import time
 from pytz import timezone
 from datetime import datetime
 
-from efficient_net_sa import EfficientNetSA
-from vit import ViT
-
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':64:8'
 os.environ['WANDB_SILENT'] = 'true'
@@ -57,54 +54,54 @@ ranzcr_test_df = pd.read_csv('test_pseudolabel.csv')
 padchest_df = pd.read_csv('padchest_pseudolabel.csv')
 
 train_image_transforms = alb.Compose([
-    alb.ImageCompression(quality_lower=65, p=0.5),
+    # alb.ImageCompression(quality_lower=65, p=0.5),
     alb.HorizontalFlip(p=0.5),
     alb.CLAHE(p=0.5),
-    alb.OneOf([
-        alb.GridDistortion(
-            num_steps=8,
-            distort_limit=0.5,
-            p=1.0
-        ),
-        alb.OpticalDistortion(
-            distort_limit=0.5,
-            shift_limit=0.5,
-            p=1.0,
-        ),
-        alb.ElasticTransform(alpha=3, p=1.0)],
-        p=0.7
-    ),
-    alb.RandomResizedCrop(
-        height=width_size,
-        width=width_size,
-        scale=(0.8, 1.2),
-        p=0.7
-    ),
-    alb.RGBShift(p=0.5),
-    alb.RandomSunFlare(p=0.5),
-    alb.RandomFog(p=0.5),
-    alb.RandomBrightnessContrast(p=0.5),
-    alb.HueSaturationValue(
-        hue_shift_limit=20,
-        sat_shift_limit=20,
-        val_shift_limit=20,
-        p=0.5
-    ),
-    alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
-    alb.CoarseDropout(
-        max_holes=12,
-        min_holes=6,
-        max_height=int(width_size / 6),
-        max_width=int(width_size / 6),
-        min_height=int(width_size / 6),
-        min_width=int(width_size / 20),
-        p=0.5
-    ),
-    alb.IAAAdditiveGaussianNoise(loc=0, scale=(2.5500000000000003, 12.75), per_channel=False, p=0.5),
-    alb.IAAAffine(scale=1.0, translate_percent=None, translate_px=None, rotate=0.0, shear=0.0, order=1, cval=0,
-                  mode='reflect', p=0.5),
-    alb.IAAAffine(rotate=90., p=0.5),
-    alb.IAAAffine(rotate=180., p=0.5),
+    # alb.OneOf([
+    #     alb.GridDistortion(
+    #         num_steps=8,
+    #         distort_limit=0.5,
+    #         p=1.0
+    #     ),
+    #     alb.OpticalDistortion(
+    #         distort_limit=0.5,
+    #         shift_limit=0.5,
+    #         p=1.0,
+    #     ),
+    #     alb.ElasticTransform(alpha=3, p=1.0)],
+    #     p=0.7
+    # ),
+    # alb.RandomResizedCrop(
+    #     height=width_size,
+    #     width=width_size,
+    #     scale=(0.8, 1.2),
+    #     p=0.7
+    # ),
+    # alb.RGBShift(p=0.5),
+    # alb.RandomSunFlare(p=0.5),
+    # alb.RandomFog(p=0.5),
+    # alb.RandomBrightnessContrast(p=0.5),
+    # alb.HueSaturationValue(
+    #     hue_shift_limit=20,
+    #     sat_shift_limit=20,
+    #     val_shift_limit=20,
+    #     p=0.5
+    # ),
+    # alb.ShiftScaleRotate(shift_limit=0.025, scale_limit=0.1, rotate_limit=20, p=0.5),
+    # alb.CoarseDropout(
+    #     max_holes=12,
+    #     min_holes=6,
+    #     max_height=int(width_size / 6),
+    #     max_width=int(width_size / 6),
+    #     min_height=int(width_size / 6),
+    #     min_width=int(width_size / 20),
+    #     p=0.5
+    # ),
+    # alb.IAAAdditiveGaussianNoise(loc=0, scale=(2.5500000000000003, 12.75), per_channel=False, p=0.5),
+    # alb.IAAAffine(scale=1.0, translate_percent=None, translate_px=None, rotate=0.0, shear=0.0, order=1, cval=0,
+    #               mode='reflect', p=0.5),
+    # alb.IAAAffine(rotate=90., p=0.5),
+    # alb.IAAAffine(rotate=180., p=0.5),
     alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2()
 ])
@@ -121,7 +118,7 @@ valid_image_transforms = alb.Compose([
 valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
 valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, pin_memory=False, drop_last=False)
 
-checkpoints_dir_name = 'tf_efficientnet_b7_ns_pl_{}'.format(width_size)
+checkpoints_dir_name = 'tf_efficientnet_b7_ns_pl_lr_by_2_less_augs{}'.format(width_size)
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 
 model = EfficientNetNoisyStudent(
@@ -146,7 +143,7 @@ class_names = ['ETT - Abnormal', 'ETT - Borderline', 'ETT - Normal',
 criterion = torch.nn.BCEWithLogitsLoss()
 # criterion = BCEwithLabelSmoothing(pos_weights=torch.tensor(class_weights).to(device))
 # optimizer = Adas(model.parameters())
-lr_start = 1e-6
+lr_start = 1e-6 / 2
 lr_end = 1e-7
 weight_decay = 0
 epoch_num = 10
