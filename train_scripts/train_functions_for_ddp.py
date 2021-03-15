@@ -24,6 +24,7 @@ import albumentations as alb
 from adas_optimizer import Adas
 from dataloader import ImageDataset, NoisyStudentDataset
 from efficient_net import EfficientNet, EfficientNetNoisyStudent
+from inception import Inception
 from train_functions import one_epoch_train, eval_model
 from vit import ViT
 
@@ -46,12 +47,12 @@ def train_function(gpu, world_size, node_rank, gpus):
     )
 
     width_size = 640
-    batch_size = 3
+    batch_size = 12
     accumulation_step = 10
     device = torch.device("cuda:{}".format(gpu) if torch.cuda.is_available() else "cpu")
 
     if rank == 0:
-        wandb.init(project='effnet7', group=wandb.util.generate_id())
+        wandb.init(project='inception_v3', group=wandb.util.generate_id())
         wandb.config.width_size = width_size
         wandb.config.aspect_rate = 1
         wandb.config.batch_size = batch_size
@@ -138,11 +139,12 @@ def train_function(gpu, world_size, node_rank, gpus):
     # valid_sampler = DistributedSampler(valid_set, num_replicas=world_size, rank=rank)
     # valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, sampler=valid_sampler)
 
-    checkpoints_dir_name = 'tf_efficientnet_b7_noisy_student_{}'.format(width_size)
+    checkpoints_dir_name = 'inception_v3_noisy_student_{}'.format(width_size)
     os.makedirs(checkpoints_dir_name, exist_ok=True)
 
-    model = EfficientNetNoisyStudent(11, pretrained_backbone=True,
-                                     mixed_precision=True, model_name='tf_efficientnet_b7_ns')
+    # model = EfficientNetNoisyStudent(11, pretrained_backbone=True,
+    #                                  mixed_precision=True, model_name='tf_efficientnet_b7_ns')
+    model = Inception(11, pretrained_backbone=True, mixed_precision=False, model_name='inception_v3')
     model = SyncBatchNorm.convert_sync_batchnorm(model)
     model.to(device)
     model = DistributedDataParallel(model, device_ids=[gpu])
