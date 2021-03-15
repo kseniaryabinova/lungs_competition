@@ -5,6 +5,7 @@ from pytz import timezone
 from datetime import datetime
 
 from efficient_net_sa import EfficientNetSA
+from inception import Inception
 from vit import ViT
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
@@ -39,13 +40,13 @@ np.random.seed(25)
 os.makedirs('tensorboard_runs', exist_ok=True)
 shutil.rmtree('tensorboard_runs')
 writer = SummaryWriter(log_dir='tensorboard_runs', filename_suffix=str(time.time()))
-wandb.init(project='effnet5', group=wandb.util.generate_id())
+wandb.init(project='inception_v3', group=wandb.util.generate_id())
 
 width_size = 512
 wandb.config.width_size = width_size
 wandb.config.aspect_rate = 1
 
-batch_size = 16
+batch_size = 64
 accumulation_step = 1
 wandb.config.batch_size = batch_size
 wandb.config.accumulation_step = accumulation_step
@@ -72,7 +73,6 @@ train_image_transforms = alb.Compose([
         p=0.5
     ),
     alb.RandomResizedCrop(
-        # height=int(0.8192 * width_size),
         height=width_size,
         width=width_size,
         scale=(0.5, 1.5),
@@ -93,10 +93,8 @@ train_image_transforms = alb.Compose([
     alb.CoarseDropout(
         max_holes=12,
         min_holes=6,
-        # max_height=int(0.8192 * width_size / 6),
         max_height=int(width_size / 6),
         max_width=int(width_size / 6),
-        # min_height=int(0.8192 * width_size / 20),
         min_height=int(width_size / 20),
         min_width=int(width_size / 20),
         p=0.5
@@ -106,7 +104,8 @@ train_image_transforms = alb.Compose([
 ])
 wandb.config.train_augmentations = str(train_image_transforms.transforms.transforms)
 train_set = ImageDataset(train_df, train_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=48, pin_memory=True, drop_last=True)
+train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=12, pin_memory=True,
+                          drop_last=True)
 
 val_df = df[df['fold'] == 1]
 val_image_transforms = alb.Compose([
@@ -115,17 +114,19 @@ val_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 val_set = ImageDataset(val_df, val_image_transforms, '../../mark/ranzcr/train', width_size=width_size)
-val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=48, pin_memory=True, drop_last=True)
+val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=12, pin_memory=True, drop_last=True)
 
 checkpoints_dir_name = 'tf_efficientnet_b5_ns_{}_no_wd'.format(width_size)
 os.makedirs(checkpoints_dir_name, exist_ok=True)
 wandb.config.model_name = checkpoints_dir_name
 
 # model = ResNet18(11, 1, pretrained_backbone=True, mixed_precision=True)
-model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
-                     # checkpoint_path='tf_efficientnet_b7_ns_pretrain_600/tf_efficientnet_b7_ns_pretrain_600_epoch6_val_auc0.829_loss0.244_train_auc0.808_loss0.177.pth')
+# model = EfficientNet(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
+# checkpoint_path='tf_efficientnet_b7_ns_pretrain_600/tf_efficientnet_b7_ns_pretrain_600_epoch6_val_auc0.829_loss0.244_train_auc0.808_loss0.177.pth')
 # model = ViT(11, pretrained_backbone=True, mixed_precision=True, model_name='vit_base_patch16_384')
 # model = EfficientNetSA(11, pretrained_backbone=True, mixed_precision=True, model_name='tf_efficientnet_b5_ns')
+model = Inception(11, pretrained_backbone=False, mixed_precision=False, model_name='inception_v3',
+                  checkpoint_path='inception_v3_chestx.pth')
 
 scaler = GradScaler()
 if torch.cuda.device_count() > 1:
@@ -169,22 +170,6 @@ for epoch in range(epoch_num):
         model, val_loader, device, criterion, scaler)
     scheduler.step()
 
-    writer.add_scalars('avg/loss', {'train': train_loss, 'val': val_loss}, epoch)
-    writer.add_scalars('avg/auc', {'train': train_avg_auc, 'val': val_avg_auc}, epoch)
-    for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
-        writer.add_scalars('AUC/{}'.format(class_name), {'train': auc1, 'val': auc2}, epoch)
-    for i in range(len(class_names)):
-        writer.add_pr_curve('PR curve train/{}'.format(class_names[i]),
-                            train_data_pr[1][:, i], train_data_pr[0][:, i], global_step=epoch)
-        writer.add_pr_curve('PR curve validation/{}'.format(class_names[i]),
-                            val_data_pr[1][:, i], val_data_pr[0][:, i], global_step=epoch)
-    writer.flush()
-
-    for class_name, train_params, val_params in zip(class_names, train_rocs, val_rocs):
-        train_data = [[x, y] for (x, y) in zip(*train_params)]
-        wandb.log({'{} train_roc epoch{}'.format(class_name, epoch): wandb.Table(data=train_data, columns=['fpr', 'tpr'])})
-        val_data = [[x, y] for (x, y) in zip(*train_params)]
-        wandb.log({'{} val_roc epoch{}'.format(class_name, epoch): wandb.Table(data=val_data, columns=['fpr', 'tpr'])})
     wandb.log({'train_loss': train_loss, 'val_loss': val_loss,
                'train_auc': train_avg_auc, 'val_auc': val_avg_auc, 'epoch': epoch})
     for class_name, auc1, auc2 in zip(class_names, train_auc, val_auc):
@@ -200,7 +185,7 @@ for epoch in range(epoch_num):
           (epoch + 1, train_duration, train_loss, train_avg_auc,
            val_duration, val_loss, val_avg_auc, str(datetime.now(timezone('Europe/Moscow')))))
 
-    torch.save(model.state_dict(),
+    torch.save(model.module.state_dict(),
                os.path.join(checkpoints_dir_name, '{}_epoch{}_val_auc{}_loss{}_train_auc{}_loss{}.pth'.format(
                    checkpoints_dir_name, epoch + 1, round(val_avg_auc, 3), round(val_loss, 3),
                    round(train_avg_auc, 3), round(train_loss, 3))))
