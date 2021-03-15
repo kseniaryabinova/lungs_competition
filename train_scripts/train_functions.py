@@ -137,8 +137,8 @@ def one_epoch_train(model, train_loader, optimizer, criterion, device, scaler, i
     total_loss /= iter_counter / iters_to_accumulate
     predictions = np.array(predictions, dtype=np.float)
     ground_truth = np.array(ground_truth, dtype=np.int)
-    # avg_auc, aucs, rocs_parameters = get_metric(predictions, ground_truth)
-    avg_auc, aucs, rocs_parameters = 0, 0, 0
+    avg_auc, aucs, rocs_parameters = get_metric(predictions, ground_truth)
+    # avg_auc, aucs, rocs_parameters = 0, 0, 0
 
     return total_loss, avg_auc, aucs, rocs_parameters, (predictions, ground_truth), \
            time.time() - start_time
