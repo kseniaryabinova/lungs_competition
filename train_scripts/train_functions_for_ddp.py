@@ -202,7 +202,7 @@ def train_function(gpu, world_size, node_rank, gpus):
                   (epoch + 1, train_duration, train_loss, train_avg_auc,
                    val_duration, val_loss, val_avg_auc, str(datetime.now(timezone('Europe/Moscow')))))
 
-            torch.save(model.state_dict(),
+            torch.save(model.module.state_dict(),
                        os.path.join(checkpoints_dir_name, '{}_epoch{}_val_auc{}_loss{}_train_auc{}_loss{}.pth'.format(
                            checkpoints_dir_name, epoch + 1, round(val_avg_auc, 3), round(val_loss, 3),
                            round(train_avg_auc, 3), round(train_loss, 3))))
