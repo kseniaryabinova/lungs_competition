@@ -46,9 +46,9 @@ def train_function(gpu, world_size, node_rank, gpus):
         rank=rank
     )
 
-    width_size = 640
-    batch_size = 12
-    accumulation_step = 10
+    width_size = 512
+    batch_size = 32
+    accumulation_step = 5
     device = torch.device("cuda:{}".format(gpu) if torch.cuda.is_available() else "cpu")
 
     if rank == 0:

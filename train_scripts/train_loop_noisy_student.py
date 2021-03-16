@@ -35,7 +35,7 @@ np.random.seed(25)
 
 
 width_size = 512
-batch_size = 12
+batch_size = 64
 accumulation_step = 10
 
 wandb.init(project='inception_v3', group=wandb.util.generate_id())
@@ -105,7 +105,7 @@ train_image_transforms = alb.Compose([
 ])
 train_set = NoisyStudentDataset(ranzcr_train_df, chestx_df, train_image_transforms,
                                 '../ranzcr/train', '../data', width_size=width_size)
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
+train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=12, drop_last=True)
 
 ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
 valid_image_transforms = alb.Compose([
@@ -113,7 +113,7 @@ valid_image_transforms = alb.Compose([
     ToTensorV2()
 ])
 valid_set = ImageDataset(ranzcr_valid_df, valid_image_transforms, '../ranzcr/train', width_size=width_size)
-valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=4, pin_memory=False, drop_last=False)
+valid_loader = DataLoader(valid_set, batch_size=batch_size, num_workers=12, pin_memory=False, drop_last=False)
 
 # ranzcr_valid_df = ranzcr_df[ranzcr_df['fold'] == 1]
 # valid_image_transforms = alb.Compose([
